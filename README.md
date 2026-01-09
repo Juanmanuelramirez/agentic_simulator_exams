@@ -1,5 +1,7 @@
 # Agentic Exam Simulator
 
+
+
 An intelligent exam preparation platform powered by AI agents that helps you study for technical certifications through adaptive learning and realistic exam simulations.
 
 ## 🎯 What is Agentic Exam Simulator?
