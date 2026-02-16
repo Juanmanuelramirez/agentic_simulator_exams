@@ -14,12 +14,7 @@ const SimulatorView: React.FC<SimulatorViewProps> = ({ exam, onExit }) => {
   const [currentIdx, setCurrentIdx] = useState(0);
   const [loading, setLoading] = useState(false);
 
-  // Load first question on start
-  useEffect(() => {
-    loadNextQuestion();
-  }, []);
-
-  const loadNextQuestion = async () => {
+  const loadNextQuestion = React.useCallback(async () => {
     if (questions.length > currentIdx && currentIdx < 9) {
       setCurrentIdx(currentIdx + 1);
       return;
@@ -39,7 +34,12 @@ const SimulatorView: React.FC<SimulatorViewProps> = ({ exam, onExit }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [exam, questions, currentIdx]);
+
+  // Load first question on start
+  useEffect(() => {
+    loadNextQuestion();
+  }, [loadNextQuestion]);
 
   const currentQuestion = questions[currentIdx];
 

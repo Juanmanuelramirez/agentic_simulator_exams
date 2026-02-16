@@ -1,60 +1,83 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import './App.css'
-import BottomBar from './components/BottomBar'
 import SimulatorView from './components/SimulatorView'
 import RealExamView from './components/RealExamView'
 import ExamResults from './components/ExamResults'
-import HistoryView from './components/HistoryView'
+import UserDashboard from './components/UserDashboard'
+import AdminDashboard from './components/AdminDashboard'
 import StudyCommitment from './components/StudyCommitment'
-import PerformanceChart from './components/PerformanceChart'
 import { librarian } from './agents/librarian'
-import type { Exam, Question, ExamAttempt, UserProfile } from './types'
-import { Loader2, Search as SearchIcon, PlayCircle, GraduationCap, Flame, BarChart } from 'lucide-react'
+import type { Exam, Question, ExamAttempt, UserProfile, Difficulty } from './types'
+import { Shield, User as UserIcon } from 'lucide-react'
 
 function App() {
-  const [activeTab, setActiveTab] = useState('home');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [isSearching, setIsSearching] = useState(false);
+  const [role, setRole] = useState<'user' | 'admin'>('user');
   const [activeExam, setActiveExam] = useState<Exam | null>(null);
+  const [activeDifficulty, setActiveDifficulty] = useState<Difficulty>('intermediate');
   const [examMode, setExamMode] = useState<'simulator' | 'real' | null>(null);
   const [results, setResults] = useState<Question[] | null>(null);
   const [attempts, setAttempts] = useState<ExamAttempt[]>([]);
+  const [exams, setExams] = useState<Exam[]>([]);
+
   const [profile, setProfile] = useState<UserProfile>({
+    id: 'user-123',
+    name: 'Juan Ramirez',
+    email: 'juan.ramirez@example.com',
     preferred_language: 'es',
     streak: 5,
+    last_access: new Date().toISOString(),
     study_commitment: {
-      days: [],
-      time: '',
-      notifications: false
+      days: ['Mon', 'Wed'],
+      time: '20:00',
+      notifications: true
     }
   });
+
+  const [usersList] = useState<UserProfile[]>([
+    profile,
+    { id: 'user-456', name: 'Maria Garcia', email: 'maria@example.com', streak: 12, last_access: new Date().toISOString(), preferred_language: 'es', study_commitment: { days: [], time: '', notifications: false } }
+  ]);
+
   const [showCommitment, setShowCommitment] = useState(false);
 
-  const handleSearch = async () => {
-    if (!searchQuery.trim()) return;
-    setIsSearching(true);
-    try {
-      const exam = await librarian.discoverExam(searchQuery);
+  // Initial data load
+  useEffect(() => {
+    const loadInitialExams = async () => {
+      const defaultExam = await librarian.discoverExam('AWS Certified Solutions Architect - Associate');
+      setExams([defaultExam]);
+    };
+    loadInitialExams();
+  }, []);
+
+  const handleStartExam = (examId: string) => {
+    const exam = exams.find(e => e.id === examId);
+    if (exam) {
       setActiveExam(exam);
-    } catch (error) {
-      console.error("Search failed", error);
-    } finally {
-      setIsSearching(false);
+      setExamMode(null); // Force mode selection
     }
   };
 
   const handleFinishExam = (finishedQuestions: Question[]) => {
-    setResults(finishedQuestions);
+    const score = Math.round((finishedQuestions.filter(q => {
+      const selected = q.user_selected_ids || [];
+      const correct = q.correct_ids;
+      return selected.length === correct.length && selected.every(id => correct.includes(id));
+    }).length / finishedQuestions.length) * 100);
+
     const newAttempt: ExamAttempt = {
       id: `att-${Date.now()}`,
       exam_id: activeExam?.id || 'unknown',
-      mode: 'real',
+      mode: examMode || 'real',
+      difficulty: activeDifficulty,
       start_time: new Date().toISOString(),
       end_time: new Date().toISOString(),
       questions: finishedQuestions,
-      status: 'completed'
+      status: 'completed',
+      score
     };
+
     setAttempts([newAttempt, ...attempts]);
+    setResults(finishedQuestions);
   };
 
   const handleSaveCommitment = (commitment: UserProfile['study_commitment']) => {
@@ -62,6 +85,14 @@ function App() {
     setShowCommitment(false);
   };
 
+  const handleAddExam = async (partialExam: Partial<Exam>) => {
+    // Admin adding a new exam via librarian or manually
+    const newExam = await librarian.discoverExam(partialExam.name || 'Nueva Certificación');
+    setExams([...exams, newExam]);
+    alert('Simulador añadido exitosamente por la IA.');
+  };
+
+  // Rendering logic
   if (results) {
     return (
       <ExamResults
@@ -79,167 +110,92 @@ function App() {
 
     if (showCommitment) {
       return (
-        <StudyCommitment
-          onSave={handleSaveCommitment}
-          onCancel={() => { setActiveExam(null); setShowCommitment(false); }}
-        />
+        <div className="app-container">
+          <StudyCommitment
+            onSave={handleSaveCommitment}
+            onCancel={() => { setActiveExam(null); setShowCommitment(false); }}
+          />
+        </div>
       );
     }
 
     if (!examMode) {
       return (
-        <div className="mode-selection fade-in">
-          <header className="page-header center">
-            <h1>{activeExam.name}</h1>
-            <p className="text-secondary">Selecciona el modo de entrenamiento</p>
-          </header>
+        <div className="app-container flex-center">
+          <div className="mode-selection card fade-in">
+            <h2 className="mb-1">{activeExam.name}</h2>
+            <p className="text-muted mb-2">Configura tu sesión de práctica</p>
 
-          <div className="selection-cards">
-            <button className="card selection-card" onClick={() => setExamMode('simulator')}>
-              <PlayCircle size={48} color="var(--primary-color)" />
-              <h3>Modo Simulador</h3>
-              <p>Aprendizaje activo con feedback inmediato y explicaciones de IA.</p>
-              <span className="badge">Recomendado para estudiar</span>
-            </button>
-            <button className="card selection-card" onClick={() => setExamMode('real')}>
-              <GraduationCap size={48} color="var(--primary-color)" />
-              <h3>Modo Examen Real</h3>
-              <p>Evaluación sumativa con tiempo limitado y resultados al final.</p>
-              <span className="badge secondary">{activeExam.duration_minutes} min</span>
-            </button>
+            <div className="difficulty-selector mb-2">
+              <label>Dificultad:</label>
+              <select
+                value={activeDifficulty}
+                onChange={(e) => setActiveDifficulty(e.target.value as Difficulty)}
+                className="select-input"
+              >
+                <option value="beginner">Principiante (Focus en conceptos)</option>
+                <option value="intermediate">Intermedio (Escenarios reales)</option>
+                <option value="advanced">Avanzado (Casos críticos)</option>
+              </select>
+            </div>
+
+            <div className="selection-cards grid">
+              <button className="card selection-card" onClick={() => setExamMode('simulator')}>
+                <h3>Modo Simulador</h3>
+                <p>Feedback inmediato de IA (Bedrock)</p>
+              </button>
+              <button className="card selection-card" onClick={() => setExamMode('real')}>
+                <h3>Modo Examen</h3>
+                <p>Tiempo limitado, sin ayudas</p>
+              </button>
+            </div>
+            <button onClick={() => setActiveExam(null)} className="text-btn mt-2">Cancelar</button>
           </div>
-          <button onClick={() => setActiveExam(null)} className="btn-text">Cancelar</button>
-
           <style>{`
-            .mode-selection { padding: 2rem; max-width: 800px; margin: 0 auto; text-align: center; }
-            .selection-cards { display: grid; grid-template-columns: 1fr; gap: 1.5rem; margin: 2rem 0; }
-            @media (min-width: 640px) { .selection-cards { grid-template-columns: 1fr 1fr; } }
-            .selection-card { 
-              display: flex; flex-direction: column; align-items: center; gap: 1rem; 
-              text-align: center; padding: 2.5rem 1.5rem; cursor: pointer; border: 1px solid #E2E8F0;
-              background: white; border-radius: var(--radius-lg);
+            .mb-1 { margin-bottom: 0.5rem; }
+            .mb-2 { margin-bottom: 1.5rem; }
+            .mt-2 { margin-top: 1.5rem; }
+            .select-input { 
+              width: 100%; padding: 0.75rem; background: rgba(255,255,255,0.05); 
+              border: 1px solid var(--glass-border); border-radius: 8px; color: white; margin-top: 0.5rem;
             }
-            .badge { background: #EEF2FF; color: var(--primary-color); padding: 4px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: 600; }
-            .badge.secondary { background: #F1F5F9; color: var(--text-secondary); }
-            .btn-text { background: none; border: none; color: var(--text-secondary); font-weight: 500; cursor: pointer; padding: 1rem; }
+            .selection-card { cursor: pointer; transition: transform 0.2s; }
+            .selection-card:hover { transform: scale(1.02); background: rgba(255,255,255,0.08); }
           `}</style>
         </div>
       );
     }
 
     return examMode === 'simulator'
-      ? <SimulatorView exam={activeExam} onExit={() => { setActiveExam(null); setExamMode(null); }} />
-      : <RealExamView exam={activeExam} onExit={() => { setActiveExam(null); setExamMode(null); }} onFinish={handleFinishExam} />;
+      ? <div className="app-container"><SimulatorView exam={activeExam} onExit={() => { setActiveExam(null); setExamMode(null); }} /></div>
+      : <div className="app-container"><RealExamView exam={activeExam} onExit={() => { setActiveExam(null); setExamMode(null); }} onFinish={handleFinishExam} /></div>;
   }
-
-  const renderContent = () => {
-    switch (activeTab) {
-      case 'home':
-        return (
-          <div className="fade-in">
-            <header className="page-header">
-              <h1>¡Hola de nuevo!</h1>
-              <p className="text-secondary">Tu racha: <span className="streak-fire"><Flame size={16} fill="currentColor" /> {profile.streak} días</span></p>
-            </header>
-
-            <section className="dashboard-grid">
-              <div className="card glass">
-                <h3>Próximo Estudio</h3>
-                <p>{profile.study_commitment.days.length ? `${profile.study_commitment.days.join(', ')} a las ${profile.study_commitment.time}` : 'Sin programar'}</p>
-                <button className="btn-primary" onClick={() => setShowCommitment(true)}>
-                  {profile.study_commitment.days.length ? 'Ajustar Horario' : 'Configurar Compromiso'}
-                </button>
-              </div>
-              <div className="card">
-                <h3>Último Intento</h3>
-                {attempts.length > 0 ? (
-                  <>
-                    <p className="success-text">Resolviste {attempts[0].questions.length} preguntas</p>
-                    <button className="btn-outline" onClick={() => setActiveTab('history')}>Revisar Historial</button>
-                  </>
-                ) : (
-                  <>
-                    <p>No has realizado exámenes todavía.</p>
-                    <button className="btn-outline" onClick={() => setActiveTab('discover')}>Explorar Exámenes</button>
-                  </>
-                )}
-              </div>
-            </section>
-          </div>
-        );
-      case 'discover':
-        return (
-          <div className="fade-in">
-            <header className="page-header">
-              <h1>Descubrir</h1>
-              <p className="text-secondary">Encuentra tu próxima certificación</p>
-            </header>
-            <div className="search-container card glass">
-              <div className="input-with-icon">
-                <SearchIcon size={20} color="var(--text-secondary)" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Ej. AWS Solutions Architect..."
-                  className="search-input"
-                />
-              </div>
-              <button
-                onClick={handleSearch}
-                disabled={isSearching}
-                className="btn-primary"
-              >
-                {isSearching ? <Loader2 className="animate-spin" size={20} /> : 'Buscar con Agente Librarian'}
-              </button>
-            </div>
-          </div>
-        );
-      case 'history':
-        return <HistoryView attempts={attempts} />;
-      case 'stats':
-        return (
-          <div className="fade-in">
-            <header className="page-header">
-              <h1>Progreso</h1>
-              <p className="text-secondary">Análisis detallado por dominios técnicos</p>
-            </header>
-            <PerformanceChart attempts={attempts} />
-            <div className="card glass stats-meta">
-              <div className="stat-item">
-                <BarChart size={24} color="var(--primary-color)" />
-                <div>
-                  <label>Total Exámenes</label>
-                  <span>{attempts.length}</span>
-                </div>
-              </div>
-            </div>
-            <style>{`
-              .stats-meta { margin-top: 1.5rem; display: flex; gap: 2rem; }
-              .stat-item { display: flex; align-items: center; gap: 1rem; }
-              .stat-item label { display: block; font-size: 0.8rem; color: var(--text-secondary); }
-              .stat-item span { font-weight: 700; font-size: 1.2rem; }
-            `}</style>
-          </div>
-        );
-      default:
-        return (
-          <div className="fade-in">
-            <header className="page-header">
-              <h1>{activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}</h1>
-              <p className="text-secondary">Próximamente...</p>
-            </header>
-          </div>
-        );
-    }
-  };
 
   return (
     <div className="app-container">
-      <main className="main-content">
-        {renderContent()}
-      </main>
-      <BottomBar activeTab={activeTab} setActiveTab={setActiveTab} />
+      {role === 'user' ? (
+        <UserDashboard
+          user={profile}
+          attempts={attempts}
+          exams={exams}
+          onStartExam={handleStartExam}
+          onViewDetail={(id) => console.log('View detail', id)}
+        />
+      ) : (
+        <AdminDashboard
+          users={usersList}
+          exams={exams}
+          attempts={attempts}
+          onAddExam={handleAddExam}
+        />
+      )}
+
+      <div className="role-switcher">
+        <button className="switch-btn" onClick={() => setRole(role === 'user' ? 'admin' : 'user')}>
+          {role === 'user' ? <Shield size={14} /> : <UserIcon size={14} />}
+          Switch to {role === 'user' ? 'Admin' : 'User'}
+        </button>
+      </div>
     </div>
   )
 }

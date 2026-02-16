@@ -1,121 +1,84 @@
-# Agentic Exam Simulator
+# Agentic Exam Simulator 2.0
 
-
-
-An intelligent exam preparation platform powered by AI agents that helps you study for technical certifications through adaptive learning and realistic exam simulations.
+An intelligent exam preparation platform powered by **AWS Bedrock** that helps you study for technical certifications through adaptive learning and dynamic AI-generated simulations.
 
 ## 🎯 What is Agentic Exam Simulator?
 
-Agentic Exam Simulator is a modern web application designed to revolutionize how you prepare for technical certifications. It combines the power of AI agents with interactive learning to provide:
+Agentic Exam Simulator is a state-of-the-art web application designed to revolutionize how you prepare for technical certifications. By leveraging **Amazon Bedrock (Claude 3 Haiku)**, it provides:
 
-- **AI-Powered Exam Discovery**: The Librarian Agent automatically finds and structures certification exams based on your search queries
-- **Dual Learning Modes**: Choose between interactive simulator mode with immediate feedback or realistic exam mode with time constraints
-- **Intelligent Question Generation**: The Solver Agent creates contextual explanations and adaptive learning experiences
-- **Performance Analytics**: Track your progress across different technical domains with detailed charts and statistics
-- **Study Commitment Tracking**: Set and maintain study schedules with streak tracking to build consistent learning habits
+- **Just-in-Time question generation**: Questions are created on-the-fly, ensuring you never see the same exam twice.
+- **Dual-Persona Dashboards**: Specialized views for Users and Administrators.
+- **AI-Powered Study Guides**: Personalized review material generated based on your weak points.
+- **Premium Glassmorphism UI**: A stunning, modern design with dark mode, high-quality transitions, and micro-animations.
+- **Adaptive Difficulty**: Choose between Beginner, Intermediate, and Advanced levels for tailored training.
 
 ### Key Features
 
 🤖 **AI Agents**
-- **Librarian Agent**: Discovers certification blueprints and exam structures
-- **Solver Agent**: Provides intelligent explanations and adaptive feedback
+- **Librarian Agent**: Discovers official certification blueprints and structures exam domains.
+- **Solver Agent (Enhanced)**: Generates high-quality, scenario-based questions using Claude 3 via Bedrock Runtime.
 
-📚 **Learning Modes**
-- **Simulator Mode**: Interactive learning with immediate feedback and AI explanations
-- **Real Exam Mode**: Timed practice exams that simulate actual certification conditions
+� **User Experience**
+- **Personalized Dashboard**: Track your performance across domains, view your streak, and manage study commitments.
+- **Study Guide Generator**: Click a button to have the AI analyze your mistakes and create a Markdown study guide.
+- **Review Mode**: Go back through past exams to see detailed AI explanations for每一 question.
 
-📊 **Progress Tracking**
-- Performance analytics by technical domain
-- Study streak tracking
-- Detailed exam attempt history
-- Visual progress charts
-
-⚡ **Smart Features**
-- Responsive design for desktop and mobile
-- Study commitment scheduler
-- Real-time performance feedback
-- Domain-specific progress analysis
+�️ **Admin Panel**
+- **User Management**: Monitor user activity, access frequency, and general performance.
+- **Simulator Registry**: Add new official certifications instantly using AI discovery.
+- **Global Analytics**: Identify critical technical domains across all users.
 
 ## 🚀 Getting Started
 
 ### Prerequisites
 
-Before you begin, ensure you have the following installed on your system:
-
-- **Node.js** (version 18.0 or higher)
-- **npm** (comes with Node.js) or **yarn**
-
-You can check your versions by running:
-```bash
-node --version
-npm --version
-```
+- **Node.js** (version 20.0 or higher)
+- **AWS Account** with access to Amazon Bedrock (Anthropic Claude 3 Haiku model).
 
 ### Installation
 
-1. **Clone the repository**
+1. **Clone and Install**
    ```bash
    git clone <repository-url>
-   cd agentic_simulator_exams-1
-   ```
-
-2. **Install dependencies**
-   ```bash
+   cd agentic_simulator_exams
    npm install
    ```
-   
-   Or if you prefer yarn:
-   ```bash
-   yarn install
+
+2. **Environment Configuration**
+   Create a `.env.local` file:
+   ```env
+   VITE_AWS_REGION=us-east-1
+   VITE_AWS_ACCESS_KEY_ID=your_key_id
+   VITE_AWS_SECRET_ACCESS_KEY=your_secret_key
    ```
 
-3. **Start the development server**
+3. **Run Development Server**
    ```bash
    npm run dev
    ```
-   
-   Or with yarn:
-   ```bash
-   yarn dev
-   ```
-
-4. **Open your browser**
-   
-   Navigate to `http://localhost:5173` to see the application running.
-
-### Available Scripts
-
-- `npm run dev` - Start the development server with hot reload
-- `npm run build` - Build the application for production
-- `npm run preview` - Preview the production build locally
-- `npm run lint` - Run ESLint to check code quality
 
 ## 🏗️ Project Structure
 
 ```
 src/
-├── agents/           # AI agents for exam discovery and solving
-│   ├── librarian.ts  # Exam discovery and blueprint extraction
-│   └── solver.ts     # Question solving and explanation generation
-├── components/       # React components
-│   ├── BottomBar.tsx        # Navigation bar
-│   ├── ExamResults.tsx      # Results display
-│   ├── HistoryView.tsx      # Exam attempt history
-│   ├── PerformanceChart.tsx # Analytics visualization
-│   ├── QuestionCard.tsx     # Individual question display
-│   ├── RealExamView.tsx     # Timed exam mode
-│   ├── SimulatorView.tsx    # Interactive learning mode
-│   └── StudyCommitment.tsx  # Study schedule configuration
-├── types/            # TypeScript type definitions
-│   └── index.ts      # Core data types and interfaces
-├── App.tsx           # Main application component
-└── main.tsx          # Application entry point
+├── agents/           # AI Core logic
+│   ├── librarian.ts  # Exam discovery agent
+│   └── solver.ts     # Bedrock-integrated question generator
+├── components/       # UI Components
+│   ├── AdminDashboard.tsx  # Global management view
+│   ├── UserDashboard.tsx   # Learner performance view
+│   ├── SimulatorView.tsx   # Interactive learning mode
+│   ├── RealExamView.tsx    # Evaluation mode
+│   └── ...                 # Specialized sub-components
+├── types/
+│   └── index.ts      # Core interfaces (Exam, Attempt, Profile, etc.)
+├── App.tsx           # Main router and role management
+└── App.css           # Premium design system tokens
 ```
 
 ## 🎮 How to Use
 
 ### 1. Discover Exams
-- Navigate to the "Discover" tab
 - Search for certifications (e.g., "AWS Solutions Architect", "Azure Data Fundamentals")
 - The Librarian Agent will find and structure the exam for you
 
