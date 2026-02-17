@@ -7,6 +7,8 @@ An intelligent exam preparation platform powered by **AWS Bedrock** that helps y
 Agentic Exam Simulator is a state-of-the-art web application designed to revolutionize how you prepare for technical certifications. By leveraging **Amazon Bedrock (Claude 3 Haiku)**, it provides:
 
 - **Just-in-Time question generation**: Questions are created on-the-fly, ensuring you never see the same exam twice.
+- **Secure Authentication**: Integrated with **AWS Amplify Auth** using social providers (Google and Amazon).
+- **Role-Based Access Control**: Automated dashboard redirection based on Cognito groups/attributes (User or Admin).
 - **Dual-Persona Dashboards**: Specialized views for Users and Administrators.
 - **AI-Powered Study Guides**: Personalized review material generated based on your weak points.
 - **Premium Glassmorphism UI**: A stunning, modern design with dark mode, high-quality transitions, and micro-animations.
@@ -14,11 +16,16 @@ Agentic Exam Simulator is a state-of-the-art web application designed to revolut
 
 ### Key Features
 
+🔐 **Secure Access**
+- **Social Login**: Support for Google and Amazon accounts.
+- **Session Management**: Persistent sessions and secure logout.
+- **Protected Routes**: Automatic redirection to login for unauthenticated users.
+
 🤖 **AI Agents**
 - **Librarian Agent**: Discovers official certification blueprints and structures exam domains.
 - **Solver Agent (Enhanced)**: Generates high-quality, scenario-based questions using Claude 3 via Bedrock Runtime.
 
-� **User Experience**
+ **User Experience**
 - **Personalized Dashboard**: Track your performance across domains, view your streak, and manage study commitments.
 - **Study Guide Generator**: Click a button to have the AI analyze your mistakes and create a Markdown study guide.
 - **Review Mode**: Go back through past exams to see detailed AI explanations for每一 question.

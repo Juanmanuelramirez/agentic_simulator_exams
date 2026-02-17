@@ -24,8 +24,8 @@ export class SolverAgent {
     /**
      * Generates a single question based on the exam blueprint.
      */
-    async generateQuestion(exam: Exam, difficulty: string = 'intermediate'): Promise<Question> {
-        console.log(`Solver: Requesting AI generation for ${exam.name} [Diff: ${difficulty}]...`);
+    async generateQuestion(exam: Exam, difficulty: string = 'intermediate', language: string = 'es'): Promise<Question> {
+        console.log(`Solver: Requesting AI generation (${language}) for ${exam.name} [Diff: ${difficulty}]...`);
 
         const domain = this.selectDomainByWeight(exam);
         const type: QuestionType = Math.random() > 0.3 ? 'single_select' : 'multi_select';
@@ -36,6 +36,8 @@ export class SolverAgent {
                 You are an expert certification exam writer. Generate a high-quality ${type} question for the ${exam.name} certification.
                 Focus specifically on the domain: "${domain.name}".
                 Difficulty level: ${difficulty}.
+                
+                IMPORTANT: The response MUST be generated entirely in the following language: ${language}.
                 
                 The response MUST be a valid JSON object with the following structure:
                 {

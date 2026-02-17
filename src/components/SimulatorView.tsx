@@ -3,13 +3,14 @@ import type { Exam, Question } from '../types';
 import { solver } from '../agents/solver';
 import QuestionCard from './QuestionCard';
 import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
+import { useLanguage } from './LanguageContext';
 
 interface SimulatorViewProps {
   exam: Exam;
   onExit: () => void;
 }
-
 const SimulatorView: React.FC<SimulatorViewProps> = ({ exam, onExit }) => {
+  const { language } = useLanguage();
   const [questions, setQuestions] = useState<Question[]>([]);
   const [currentIdx, setCurrentIdx] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -24,7 +25,7 @@ const SimulatorView: React.FC<SimulatorViewProps> = ({ exam, onExit }) => {
 
     setLoading(true);
     try {
-      const newQuestion = await solver.generateQuestion(exam);
+      const newQuestion = await solver.generateQuestion(exam, 'intermediate', language);
       setQuestions([...questions, newQuestion]);
       if (questions.length > 0) {
         setCurrentIdx(questions.length);
@@ -34,7 +35,7 @@ const SimulatorView: React.FC<SimulatorViewProps> = ({ exam, onExit }) => {
     } finally {
       setLoading(false);
     }
-  }, [exam, questions, currentIdx]);
+  }, [exam, questions, currentIdx, language]);
 
   // Load first question on start
   useEffect(() => {

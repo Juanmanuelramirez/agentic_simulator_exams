@@ -8,10 +8,15 @@ import AdminDashboard from './components/AdminDashboard'
 import StudyCommitment from './components/StudyCommitment'
 import { librarian } from './agents/librarian'
 import type { Exam, Question, ExamAttempt, UserProfile, Difficulty } from './types'
-import { Shield, User as UserIcon } from 'lucide-react'
+import { Globe, LogOut, Loader2 } from 'lucide-react'
+import { useLanguage } from './components/LanguageContext'
+import { useAuth } from './components/AuthContext'
+import LoginView from './components/LoginView'
 
 function App() {
-  const [role, setRole] = useState<'user' | 'admin'>('user');
+  const { language, setLanguage } = useLanguage();
+  const { user, loading, logout } = useAuth();
+
   const [activeExam, setActiveExam] = useState<Exam | null>(null);
   const [activeDifficulty, setActiveDifficulty] = useState<Difficulty>('intermediate');
   const [examMode, setExamMode] = useState<'simulator' | 'real' | null>(null);
@@ -32,6 +37,18 @@ function App() {
       notifications: true
     }
   });
+
+  // Sync profile with authenticated user
+  useEffect(() => {
+    if (user) {
+      setProfile(prev => ({
+        ...prev,
+        id: user.id,
+        name: user.username,
+        email: user.email || prev.email
+      }));
+    }
+  }, [user]);
 
   const [usersList] = useState<UserProfile[]>([
     profile,
@@ -86,11 +103,22 @@ function App() {
   };
 
   const handleAddExam = async (partialExam: Partial<Exam>) => {
-    // Admin adding a new exam via librarian or manually
     const newExam = await librarian.discoverExam(partialExam.name || 'Nueva Certificación');
     setExams([...exams, newExam]);
     alert('Simulador añadido exitosamente por la IA.');
   };
+
+  if (loading) {
+    return (
+      <div className="app-container flex-center">
+        <Loader2 className="animate-spin" size={48} color="var(--primary-color)" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <LoginView />;
+  }
 
   // Rendering logic
   if (results) {
@@ -151,17 +179,6 @@ function App() {
             </div>
             <button onClick={() => setActiveExam(null)} className="text-btn mt-2">Cancelar</button>
           </div>
-          <style>{`
-            .mb-1 { margin-bottom: 0.5rem; }
-            .mb-2 { margin-bottom: 1.5rem; }
-            .mt-2 { margin-top: 1.5rem; }
-            .select-input { 
-              width: 100%; padding: 0.75rem; background: rgba(255,255,255,0.05); 
-              border: 1px solid var(--glass-border); border-radius: 8px; color: white; margin-top: 0.5rem;
-            }
-            .selection-card { cursor: pointer; transition: transform 0.2s; }
-            .selection-card:hover { transform: scale(1.02); background: rgba(255,255,255,0.08); }
-          `}</style>
         </div>
       );
     }
@@ -173,7 +190,7 @@ function App() {
 
   return (
     <div className="app-container">
-      {role === 'user' ? (
+      {user.role === 'user' ? (
         <UserDashboard
           user={profile}
           attempts={attempts}
@@ -191,9 +208,24 @@ function App() {
       )}
 
       <div className="role-switcher">
-        <button className="switch-btn" onClick={() => setRole(role === 'user' ? 'admin' : 'user')}>
-          {role === 'user' ? <Shield size={14} /> : <UserIcon size={14} />}
-          Switch to {role === 'user' ? 'Admin' : 'User'}
+        <div className="lang-selector mb-1">
+          <Globe size={14} />
+          <button
+            className={`lang-btn ${language === 'es' ? 'active' : ''}`}
+            onClick={() => setLanguage('es')}
+          >
+            ES
+          </button>
+          <button
+            className={`lang-btn ${language === 'en' ? 'active' : ''}`}
+            onClick={() => setLanguage('en')}
+          >
+            EN
+          </button>
+        </div>
+        <button className="switch-btn" onClick={logout}>
+          <LogOut size={14} />
+          Cerrar Sesión ({user.username})
         </button>
       </div>
     </div>

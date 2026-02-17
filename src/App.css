@@ -32,7 +32,7 @@ body {
   display: flex;
   min-height: 100vh;
   background: radial-gradient(circle at top right, rgba(99, 102, 241, 0.1), transparent),
-              radial-gradient(circle at bottom left, rgba(236, 72, 153, 0.05), transparent);
+    radial-gradient(circle at bottom left, rgba(236, 72, 153, 0.05), transparent);
 }
 
 /* User Dashboard Styles */
@@ -238,7 +238,8 @@ body {
   text-align: left;
 }
 
-.admin-nav button:hover, .admin-nav button.active {
+.admin-nav button:hover,
+.admin-nav button.active {
   background: rgba(99, 102, 241, 0.1);
   color: var(--text-main);
 }
@@ -302,7 +303,44 @@ body {
   position: fixed;
   bottom: 2rem;
   right: 2rem;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.75rem;
   z-index: 1000;
+}
+
+.lang-selector {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.8rem;
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  border-radius: 20px;
+  color: var(--text-secondary);
+}
+
+.lang-btn {
+  background: none;
+  border: none;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 0.2rem 0.4rem;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.lang-btn.active {
+  color: var(--primary-color);
+  background: rgba(99, 102, 241, 0.1);
+}
+
+.lang-btn:hover:not(.active) {
+  color: white;
 }
 
 .switch-btn {
