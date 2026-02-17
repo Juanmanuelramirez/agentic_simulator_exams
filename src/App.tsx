@@ -43,9 +43,9 @@ function App() {
     if (user) {
       setProfile(prev => ({
         ...prev,
-        id: user.id,
+        id: user.id || 'current-user',
         name: user.username,
-        email: user.email || prev.email
+        email: user.email || ''
       }));
     }
   }, [user]);

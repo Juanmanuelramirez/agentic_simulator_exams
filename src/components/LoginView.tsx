@@ -8,41 +8,43 @@ const LoginView: React.FC = () => {
     const { t } = useLanguage();
 
     return (
-        <div className="login-view flex-center">
+        <div className="login-view">
             <div className="login-card glass fade-in">
                 <div className="login-header">
-                    <div className="logo-icon">
-                        <ShieldCheck size={48} color="var(--primary-color)" />
+                    <div className="logo-icon glow-icon">
+                        <ShieldCheck size={56} color="var(--primary)" />
                     </div>
-                    <h1>Agentic LMS</h1>
-                    <p className="text-muted">Simulador de Exámenes con IA</p>
+                    <h1 className="glow-text">Agentic LMS</h1>
+                    <p className="text-secondary">Simulador de Certificaciones con IA</p>
                 </div>
 
                 <div className="login-actions grid">
-                    <button className="login-btn google" onClick={loginWithGoogle}>
+                    <button className="login-btn google-btn" onClick={loginWithGoogle}>
                         <img src="https://www.google.com/favicon.ico" alt="Google" width={18} />
                         Continuar con Google
                     </button>
 
-                    <button className="login-btn amazon" onClick={loginWithAmazon}>
+                    <button className="login-btn amazon-btn" onClick={loginWithAmazon}>
                         <Mail size={18} />
                         Continuar con Amazon
                     </button>
                 </div>
 
                 <div className="login-footer">
-                    <p>{t('welcome')}</p>
+                    <p className="text-secondary">{t('welcome')}</p>
                 </div>
             </div>
 
             <style>{`
                 .login-view {
                     height: 100vh;
-                    background: var(--bg-color);
+                    background: 
+                        radial-gradient(circle at 20% 20%, rgba(99, 102, 241, 0.1) 0%, transparent 40%),
+                        radial-gradient(circle at 80% 80%, rgba(168, 85, 247, 0.1) 0%, transparent 40%);
                     display: flex;
                     align-items: center;
                     justify-content: center;
-                    padding: 1rem;
+                    padding: 1.5rem;
                 }
                 .login-card {
                     padding: 3rem 2rem;

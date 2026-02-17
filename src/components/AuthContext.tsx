@@ -58,7 +58,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 email: attributes.email,
                 role
             });
-        } catch (error) {
+        } catch (err) {
+            console.log('User not authenticated:', err);
             setUser(null);
         } finally {
             setLoading(false);
@@ -89,6 +90,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     );
 };
 
+/* eslint-disable react-refresh/only-export-components */
 export const useAuth = () => {
     const context = useContext(AuthContext);
     if (!context) throw new Error('useAuth must be used within an AuthProvider');

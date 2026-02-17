@@ -40,26 +40,26 @@ const PerformanceChart: React.FC<PerformanceChartProps> = ({ attempts }) => {
     }
 
     return (
-        <div className="performance-chart card glass">
+        <div className="performance-chart glass card">
             <h3>Desempeño por Dominio</h3>
             <div style={{ width: '100%', height: 300 }}>
                 <ResponsiveContainer>
                     <RadarChart cx="50%" cy="50%" outerRadius="80%" data={data}>
-                        <PolarGrid stroke="#E2E8F0" />
-                        <PolarAngleAxis dataKey="subject" tick={{ fill: 'var(--text-secondary)', fontSize: 12 }} />
+                        <PolarGrid stroke="rgba(255,255,255,0.1)" />
+                        <PolarAngleAxis dataKey="subject" tick={{ fill: 'var(--text-secondary)', fontSize: 11 }} />
                         <PolarRadiusAxis angle={30} domain={[0, 100]} tick={{ fill: 'var(--text-secondary)', fontSize: 10 }} />
                         <Radar
                             name="Student"
                             dataKey="value"
-                            stroke="var(--primary-color)"
-                            fill="var(--primary-color)"
+                            stroke="var(--primary)"
+                            fill="var(--primary)"
                             fillOpacity={0.4}
                         />
                     </RadarChart>
                 </ResponsiveContainer>
             </div>
             <style>{`
-        .performance-chart h3 { margin-bottom: 1rem; text-align: center; font-size: 1rem; }
+        .performance-chart h3 { margin-bottom: 1.5rem; text-align: left; font-size: 1.1rem; font-weight: 600; }
       `}</style>
         </div>
     );

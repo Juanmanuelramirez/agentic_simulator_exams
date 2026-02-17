@@ -20,19 +20,19 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ user, attempts, exams, on
         : 0;
 
     return (
-        <div className="user-dashboard">
-            <header className="dashboard-header">
+        <div className="user-dashboard fade-in">
+            <header className="dashboard-header mb-2">
                 <div>
-                    <h1>Bienvenido, {user.name}</h1>
-                    <p className="subtitle">Tu progreso de aprendizaje hoy</p>
+                    <h1 className="glow-text">Bienvenido, {user.name}</h1>
+                    <p className="text-secondary">Tu progreso de aprendizaje hoy</p>
                 </div>
-                <div className="streak-badge">
-                    <Award size={20} />
+                <div className="streak-badge glass">
+                    <Award size={20} className="glow-icon" />
                     <span>{user.streak} días de racha</span>
                 </div>
             </header>
 
-            <nav className="dashboard-nav">
+            <nav className="dashboard-nav mb-2">
                 <button
                     className={activeTab === 'overview' ? 'active' : ''}
                     onClick={() => setActiveTab('overview')}
@@ -56,34 +56,30 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ user, attempts, exams, on
             <main className="dashboard-content">
                 {activeTab === 'overview' && (
                     <div className="overview-grid">
-                        <section className="stats-cards">
-                            <div className="stat-card p-stats">
-                                <TrendingUp className="icon" />
+                        <section className="stats-cards grid">
+                            <div className="stat-card glass">
+                                <TrendingUp className="icon primary-glow" />
                                 <div className="val">{averageScore}%</div>
                                 <div className="lbl">Puntaje Promedio</div>
                             </div>
-                            <div className="stat-card e-stats">
-                                <Clock className="icon" />
+                            <div className="stat-card glass">
+                                <Clock className="icon secondary-glow" />
                                 <div className="val">{completedAttempts.length}</div>
                                 <div className="lbl">Exámenes Completados</div>
                             </div>
                         </section>
 
-                        <section className="chart-section card">
-                            <h3>Desempeño por Dominios</h3>
-                            <div className="chart-container">
-                                <PerformanceChart attempts={attempts} />
+                        <section className="available-exams glass card">
+                            <div className="section-header">
+                                <Award size={20} color="var(--primary)" />
+                                <h3>Simuladores Disponibles</h3>
                             </div>
-                        </section>
-
-                        <section className="available-exams card">
-                            <h3>Simuladores Disponibles</h3>
                             <div className="exam-list">
                                 {exams.map(exam => (
-                                    <div key={exam.id} className="exam-item">
+                                    <div key={exam.id} className="exam-item glass">
                                         <div className="exam-info">
                                             <h4>{exam.name}</h4>
-                                            <p>{exam.provider} • {exam.duration_minutes} min</p>
+                                            <p className="text-secondary">{exam.provider} • {exam.duration_minutes} min</p>
                                         </div>
                                         <button className="primary-btn" onClick={() => onStartExam(exam.id)}>
                                             Iniciar
@@ -92,23 +88,28 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ user, attempts, exams, on
                                 ))}
                             </div>
                         </section>
+
+                        <PerformanceChart attempts={attempts} />
                     </div>
                 )}
 
                 {activeTab === 'history' && (
-                    <div className="history-view card">
+                    <div className="history-view glass card">
                         <h3>Tus Intentos Anteriores</h3>
                         <div className="history-list">
                             {completedAttempts.length === 0 ? (
-                                <p className="empty-state">No has completado exámenes aún.</p>
+                                <div className="empty-state text-center p-3">
+                                    <History className="icon-faded mb-1" size={48} />
+                                    <p>No has completado exámenes aún.</p>
+                                </div>
                             ) : (
                                 completedAttempts.sort((a, b) => new Date(b.start_time).getTime() - new Date(a.start_time).getTime()).map(attempt => {
                                     const exam = exams.find(e => e.id === attempt.exam_id);
                                     return (
-                                        <div key={attempt.id} className="history-item" onClick={() => onViewDetail(attempt.id)}>
+                                        <div key={attempt.id} className="history-item glass" onClick={() => onViewDetail(attempt.id)}>
                                             <div className="item-main">
                                                 <h4>{exam?.name}</h4>
-                                                <p>{new Date(attempt.start_time).toLocaleDateString()}</p>
+                                                <p className="text-secondary">{new Date(attempt.start_time).toLocaleDateString()}</p>
                                             </div>
                                             <div className={`item-score ${attempt.score && attempt.score >= 70 ? 'pass' : 'fail'}`}>
                                                 {attempt.score}%
@@ -122,22 +123,42 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ user, attempts, exams, on
                 )}
 
                 {activeTab === 'study' && (
-                    <div className="study-guide-view card">
-                        <h3>Generador de Guía con IA (Bedrock)</h3>
-                        <p>Basado en tus errores recientes, la IA generará una guía personalizada de repaso.</p>
-                        <button className="ai-btn">
+                    <div className="study-guide-view glass card">
+                        <div className="ai-header">
+                            <h3 className="glow-text">Generador de Guía con IA</h3>
+                            <div className="badge">POWERED BY BEDROCK</div>
+                        </div>
+                        <p className="text-secondary mb-2">Basado en tus errores recientes, la IA generará una guía personalizada de repaso para maximizar tu retención.</p>
+
+                        <button className="ai-btn pulse">
                             <BookOpen size={18} /> Generar Guía Personalizada
                         </button>
-                        <div className="placeholder-guide">
-                            <p>Tus temas débiles detectados:</p>
-                            <ul>
-                                <li>Seguridad en Infraestructura</li>
-                                <li>Optimización de Costos en S3</li>
+
+                        <div className="placeholder-guide glass p-2 mt-2">
+                            <p className="font-bold mb-1">Tus temas clave detectados:</p>
+                            <ul className="text-secondary">
+                                <li>• Seguridad en Infraestructura y IAM</li>
+                                <li>• Optimización de Costos en Almacenamiento S3</li>
+                                <li>• Estrategias de Backup y Disponibilidad</li>
                             </ul>
                         </div>
                     </div>
                 )}
             </main>
+
+            <style>{`
+                .p-3 { padding: 3rem; }
+                .p-2 { padding: 1.5rem; }
+                .mt-2 { margin-top: 1.5rem; }
+                .section-header { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1.5rem; }
+                .ai-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+                .pulse { animation: pulse 2s infinite; }
+                @keyframes pulse {
+                    0% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.4); }
+                    70% { box-shadow: 0 0 0 10px rgba(99, 102, 241, 0); }
+                    100% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0); }
+                }
+            `}</style>
         </div>
     );
 };
