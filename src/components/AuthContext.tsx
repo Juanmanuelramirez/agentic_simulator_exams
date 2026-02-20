@@ -50,7 +50,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
             // Determine role based on a custom attribute or group membership
             // For now, we'll use an attribute 'custom:role' or fallback to 'user'
-            const role = (attributes['custom:role'] as 'user' | 'admin') || 'user';
+            // [DEV MODE] If the email matches VITE_DEV_ADMIN_EMAIL, force admin role
+            const devAdminEmail = import.meta.env.VITE_DEV_ADMIN_EMAIL;
+            const role = (attributes['custom:role'] as 'user' | 'admin') ||
+                (attributes.email === devAdminEmail ? 'admin' : 'user');
 
             setUser({
                 id: currentUser.userId,

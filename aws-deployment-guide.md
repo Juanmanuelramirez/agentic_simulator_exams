@@ -5,6 +5,22 @@
 - ❌ AWS CLI user lacks S3 permissions
 - 📦 Build size: 510 KB (main bundle)
 
+## 🔐 Cognito Pre-configuration
+
+Before deploying the frontend, ensure your AWS Cognito User Pool is correctly configured:
+
+### 1. Custom Attributes
+The application requires a custom attribute to handle multi-persona dashboards:
+- **Attribute Name**: `role` (will be mapped to `custom:role`)
+- **Type**: `String`
+- **Mutable**: `Yes`
+
+### 2. Social Identity Providers
+Configure the following in the Cognito Console:
+- **Google**: Set up a Google Cloud Project with OAuth 2.0 credentials.
+- **Amazon**: Set up Login with Amazon (LWA) security profile.
+- Add the `callback` and `sign-out` URLs matching your domain (e.g., `http://localhost:5173` for dev or your CloudFront URL for prod).
+
 ## Manual Deployment Steps
 
 ### Option 1: AWS Console (S3 + CloudFront)

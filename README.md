@@ -11,6 +11,7 @@ Agentic Exam Simulator is a state-of-the-art web application designed to revolut
 - **Role-Based Access Control**: Automated dashboard redirection based on Cognito groups/attributes (User or Admin).
 - **Dual-Persona Dashboards**: Specialized views for Users and Administrators.
 - **AI-Powered Study Guides**: Personalized review material generated based on your weak points.
+- **Translation Agent**: Automatic UI translation using **AWS Translate** for global accessibility.
 - **Premium Glassmorphism UI**: A stunning, modern design with dark mode, high-quality transitions, and micro-animations.
 - **Adaptive Difficulty**: Choose between Beginner, Intermediate, and Advanced levels for tailored training.
 
@@ -34,6 +35,22 @@ Agentic Exam Simulator is a state-of-the-art web application designed to revolut
 - **User Management**: Monitor user activity, access frequency, and general performance.
 - **Simulator Registry**: Add new official certifications instantly using AI discovery.
 - **Global Analytics**: Identify critical technical domains across all users.
+
+## 🔑 Administration & RBAC
+
+The application uses a custom role-based access control system integrated with AWS Cognito.
+
+### Promoting a User to Admin
+To promote a user to the Administrator role, use the provided bootstrap script:
+
+```bash
+chmod +x scripts/bootstrap-admin.sh
+./scripts/bootstrap-admin.sh <user_email> <user_pool_id> [region]
+```
+
+### Environment Variables for Development
+For local development, you can bypass the Cognito attribute check by setting:
+- `VITE_DEV_ADMIN_EMAIL`: Emails matching this value will be granted the `admin` role automatically.
 
 ## 🚀 Getting Started
 
@@ -115,10 +132,11 @@ src/
 
 - **Frontend Framework**: React 19 with TypeScript
 - **Build Tool**: Vite for fast development and building
-- **Styling**: CSS with custom properties and responsive design
-- **Charts**: Recharts for performance visualization
-- **Icons**: Lucide React for consistent iconography
-- **State Management**: React hooks for local state management
+- **Styling**: CSS with custom properties and responsive design.
+- **Charts**: Recharts for performance visualization.
+- **Icons**: Lucide React for consistent iconography.
+- **State Management**: React hooks for local state management.
+- **AI Services**: AWS Bedrock (Claude), AWS Translate.
 
 ## 🔧 Development
 
