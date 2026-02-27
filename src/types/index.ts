@@ -28,6 +28,7 @@ export interface Exam {
     description?: string;
     domains: { name: string; weight: number }[];
     duration_minutes: number;
+    total_questions_official: number;
 }
 
 export interface ExamAttempt {

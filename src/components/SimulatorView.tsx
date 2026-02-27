@@ -16,7 +16,14 @@ const SimulatorView: React.FC<SimulatorViewProps> = ({ exam, initialQuestions, o
 
   const handleNext = () => {
     if (currentIdx < questions.length - 1) {
-      setCurrentIdx(currentIdx + 1);
+      const nextIdx = currentIdx + 1;
+      // Ensure the next question metadata is initialized if it's the first time visiting it
+      if (questions[nextIdx] && !questions[nextIdx].user_selected_ids) {
+        const updated = [...questions];
+        updated[nextIdx] = { ...updated[nextIdx], user_selected_ids: [] };
+        setQuestions(updated);
+      }
+      setCurrentIdx(nextIdx);
     } else {
       onFinish(questions);
     }

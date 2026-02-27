@@ -1,7 +1,8 @@
 :root {
-  --bg-main: #0B0E14;
-  --bg-surface: rgba(255, 255, 255, 0.03);
-  --border-default: rgba(255, 255, 255, 0.08);
+  --bg-main: #F3F4F6;
+  --bg-surface: #FFFFFF;
+  --bg-sidebar: #0B0E14;
+  --border-default: #E5E7EB;
   --primary: #6366F1;
   --primary-hover: #4f46e5;
   --secondary: #06B6D4;
@@ -10,19 +11,19 @@
   --success-bg: rgba(16, 185, 129, 0.1);
   --error: #f43f5e;
   --error-bg: rgba(244, 63, 94, 0.1);
-  --text-main: #F8FAFC;
-  --text-secondary: #94A3B8;
+  --text-main: #111827;
+  --text-secondary: #6B7280;
   --radius-2xl: 16px;
   --radius-xl: 12px;
   --radius-lg: 8px;
-  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.5);
-  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.7), 0 2px 4px -2px rgb(0 0 0 / 0.7);
-  --glass-bg: rgba(255, 255, 255, 0.03);
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+  --glass-bg: rgba(255, 255, 255, 0.8);
   --glass-blur: blur(12px);
   --font-family: 'Inter', system-ui, -apple-system, sans-serif;
 
   font-family: var(--font-family);
-  color-scheme: dark;
+  color-scheme: light;
   background-color: var(--bg-main);
   color: var(--text-main);
 }

@@ -18,10 +18,10 @@ export class SolverAgent {
      * Generates a single question based on the exam blueprint.
      * Persists the generated question to DynamoDB.
      */
-    async generateQuestion(exam: Exam, difficulty: string = 'intermediate', language: string = 'es'): Promise<Question> {
+    async generateQuestion(exam: Exam, difficulty: string = 'intermediate', language: string = 'es', specificDomain?: { name: string; weight: number }): Promise<Question> {
         console.log(`Solver: Requesting AI generation (${language}) for ${exam.name} [Diff: ${difficulty}]...`);
 
-        const domain = this.selectDomainByWeight(exam);
+        const domain = specificDomain || this.selectDomainByWeight(exam);
         const type: QuestionType = Math.random() > 0.3 ? 'single_select' : 'multi_select';
 
         try {
@@ -73,6 +73,7 @@ export class SolverAgent {
                     messages: [
                         { role: "user", content: prompt }
                     ],
+                    temperature: 0,
                 }),
             });
 
@@ -101,25 +102,34 @@ export class SolverAgent {
     }
 
     /**
-     * Generates a batch of questions upfront in parallel.
+     * Generates a batch of questions upfront.
+     * Sequentially generates questions to avoid ThrottlingException in Bedrock.
+     * Guarantees coverage of all domains.
      */
     async generateBatch(exam: Exam, count: number = 10, difficulty: string = 'intermediate', language: string = 'es'): Promise<Question[]> {
-        console.log(`Solver: Starting parallel generation for ${count} questions...`);
+        console.log(`Solver: Starting generation for ${count} questions (Full AI Mode)...`);
 
-        // Search for existing questions first to optimize costs
-        try {
-            const existing = await dbService.getQuestionsByExam(exam.id);
-            if (existing.length >= count) {
-                console.log(`Solver: Found ${existing.length} existing questions. Reusing.`);
-                return existing.sort(() => 0.5 - Math.random()).slice(0, count);
+        const domains = exam.domains && exam.domains.length > 0
+            ? exam.domains
+            : [{ name: 'General Information', weight: 100 }];
+
+        // Sequential generation to stay within Bedrock quota limits
+        const questions: Question[] = [];
+        for (let i = 0; i < count; i++) {
+            try {
+                // Cycle through domains to guarantee coverage
+                const domain = domains[i % domains.length];
+                const q = await this.generateQuestion(exam, difficulty, language, domain);
+                questions.push(q);
+            } catch (error) {
+                console.error(`Solver: Failed to generate question ${i + 1}/${count}`, error);
+                if (questions.length > 0) {
+                    console.warn(`Solver: Returning partial batch of ${questions.length} questions.`);
+                    break;
+                }
+                throw error;
             }
-        } catch (dbError) {
-            console.warn("Database lookup failed, continuing with full AI generation", dbError);
         }
-
-        // Parallel generation
-        const tasks = Array.from({ length: count }, () => this.generateQuestion(exam, difficulty, language));
-        const questions = await Promise.all(tasks);
 
         console.log(`Solver: Successfully generated ${questions.length} questions.`);
         return questions;

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import type { Question } from '../types';
 import { CheckCircle, XCircle, ExternalLink, Info } from 'lucide-react';
 
@@ -15,7 +15,12 @@ const QuestionCard: React.FC<QuestionCardProps> = ({
   isVerified = false,
   userSelectedIds = []
 }) => {
-  const [localSelected, setLocalSelected] = useState<string[]>(userSelectedIds);
+  const [localSelected, setLocalSelected] = React.useState<string[]>(userSelectedIds);
+
+  // Reset selection when the question changes
+  React.useEffect(() => {
+    setLocalSelected(userSelectedIds);
+  }, [question.id, userSelectedIds]);
 
   const toggleOption = (id: string) => {
     if (isVerified) return;
@@ -40,7 +45,11 @@ const QuestionCard: React.FC<QuestionCardProps> = ({
       <div className="question-meta mb-2">
         <span className="metadata-text">{question.domain}</span>
         <span className="metadata-text">•</span>
-        <span className="metadata-text">{question.type === 'single_select' ? 'Selección Única' : 'Selección Múltiple'}</span>
+        <span className="metadata-text">
+          {question.type === 'single_select'
+            ? 'Selección Única'
+            : `Selección Múltiple ${!isVerified ? '(selecciona ' + question.correct_ids.length + ')' : ''}`}
+        </span>
       </div>
 
       <h2 className="question-text mb-3">{question.question_text}</h2>

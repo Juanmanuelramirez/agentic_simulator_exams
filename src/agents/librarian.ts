@@ -65,6 +65,7 @@ export class LibrarianAgent {
                 "provider": "Company Name",
                 "description": "Short 1-sentence description",
                 "duration_minutes": 130,
+                "total_questions_official": 60,
                 "domains": [
                     { "name": "Domain Name", "weight": 25 },
                     ...
@@ -111,6 +112,7 @@ export class LibrarianAgent {
                 provider: 'Auto-discovered',
                 description: 'Blueprint generated via AI fallback.',
                 duration_minutes: 120,
+                total_questions_official: 60,
                 domains: [{ name: 'General Domain', weight: 100 }]
             };
         }

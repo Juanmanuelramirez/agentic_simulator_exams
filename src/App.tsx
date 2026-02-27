@@ -10,10 +10,11 @@ import { librarian } from './agents/librarian'
 import { solver } from './agents/solver'
 import { mentor } from './agents/mentor'
 import type { Exam, Question, ExamAttempt, UserProfile, Difficulty, StudyGuide } from './types'
-import { Globe, LogOut, Loader2, Zap, Award, Target, BookOpen, AlertCircle, ChevronLeft } from 'lucide-react'
+import { Zap, Award, Target, BookOpen, AlertCircle, ChevronLeft, Loader2 } from 'lucide-react'
 import { useLanguage } from './components/LanguageContext'
 import { useAuth } from './components/AuthContext'
 import LoginView from './components/LoginView'
+import Sidebar from './components/Sidebar'
 
 import { dbService } from './services/db'
 
@@ -137,15 +138,21 @@ function App() {
     }
   };
 
-  const handleStartExamData = async (exam: Exam, difficulty: Difficulty, mode: 'simulator' | 'real') => {
+  const [selectedQuestionCount, setSelectedQuestionCount] = useState<number>(10);
+
+  const handleStartExamData = async (exam: Exam, difficulty: Difficulty, mode: 'simulator' | 'real', count?: number) => {
     setGeneratingQuestions(true);
     setExamMode(mode);
+    const questionsToGenerate = count || selectedQuestionCount;
     try {
-      const batch = await solver.generateBatch(exam, 10, difficulty, language);
+      const batch = await solver.generateBatch(exam, questionsToGenerate, difficulty, language);
       setCurrentQuestions(batch);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to generate questions", error);
-      alert("Error al generar las preguntas. Intenta de nuevo.");
+      const errorMessage = error.message?.includes('ThrottlingException')
+        ? "La cuota de Bedrock se ha excedido. Intenta de nuevo en unos minutos."
+        : `Error al generar las preguntas: ${error.message || 'Error desconocido'}.`;
+      alert(errorMessage);
       setExamMode(null);
     } finally {
       setGeneratingQuestions(false);
@@ -158,6 +165,8 @@ function App() {
       setActiveExam(exam);
       setExamMode(null);
       setCurrentQuestions([]);
+      // Default to 50% of official questions or 10 if missing
+      setSelectedQuestionCount(Math.ceil((exam.total_questions_official || 20) * 0.5));
     }
   };
 
@@ -217,10 +226,12 @@ function App() {
   };
 
 
+  const [dashboardView, setDashboardView] = useState<string>('overview');
+
   if (loading) {
     return (
       <div className="app-container flex-center">
-        <Loader2 className="animate-spin" size={48} color="var(--primary-color)" />
+        <Loader2 className="animate-spin" size={48} color="var(--primary)" />
       </div>
     );
   }
@@ -249,18 +260,23 @@ function App() {
       return (
         <div className="app-container flex-center">
           <div className="loading-state card fade-in text-center">
-            <Loader2 className="animate-spin mb-1" size={48} color="var(--primary-color)" />
+            <Loader2 className="animate-spin mb-1" size={48} color="var(--primary)" />
             <h2>Generando tu simulador...</h2>
-            <p className="text-muted">El Agente AI (Bedrock) está creando 10 preguntas personalizadas para ti.</p>
+            <p className="text-secondary">El Agente AI (Bedrock) está creando {selectedQuestionCount} preguntas personalizadas para ti.</p>
+            <p className="text-secondary small">Esto garantiza cobertura de todas las áreas de estudio.</p>
           </div>
         </div>
       );
     }
 
     if (!examMode) {
+      const qMin = Math.ceil((activeExam.total_questions_official || 60) * 0.5);
+      const qMid = Math.ceil((activeExam.total_questions_official || 60) * 0.75);
+      const qMax = activeExam.total_questions_official || 60;
+
       return (
         <div className="app-container flex-center">
-          <div className="mode-selection-container glass fade-in">
+          <div className="mode-selection-container fade-in">
             <div className="selection-header">
               <button onClick={() => setActiveExam(null)} className="back-btn">
                 <ChevronLeft size={20} />
@@ -275,30 +291,57 @@ function App() {
             <p className="exam-subtitle">Configura tu experiencia de aprendizaje para hoy</p>
 
             <div className="setup-grid">
-              <div className="difficulty-box card">
-                <div className="box-header">
-                  <Target size={20} color="var(--primary-color)" />
-                  <h3>Nivel de Dificultad</h3>
+              <div className="setup-config-column">
+                <div className="difficulty-box">
+                  <div className="box-header">
+                    <Target size={20} color="var(--primary)" />
+                    <h3>Nivel de Dificultad</h3>
+                  </div>
+                  <select
+                    value={activeDifficulty}
+                    onChange={(e) => setActiveDifficulty(e.target.value as Difficulty)}
+                    className="difficulty-select"
+                  >
+                    <option value="beginner">Principiante (Básico)</option>
+                    <option value="intermediate">Intermedio (Estándar)</option>
+                    <option value="advanced">Avanzado (Complejo)</option>
+                  </select>
                 </div>
-                <select
-                  value={activeDifficulty}
-                  onChange={(e) => setActiveDifficulty(e.target.value as Difficulty)}
-                  className="difficulty-select"
-                >
-                  <option value="beginner">Principiante (Básico)</option>
-                  <option value="intermediate">Intermedio (Estándar)</option>
-                  <option value="advanced">Avanzado (Complejo)</option>
-                </select>
-                <p className="difficulty-hint">
-                  {activeDifficulty === 'beginner' && "Ideal para repasar conceptos fundamentales."}
-                  {activeDifficulty === 'intermediate' && "Equilibrado para preparación de certificación."}
-                  {activeDifficulty === 'advanced' && "Desafiante con escenarios críticos de negocio."}
-                </p>
+
+                <div className="difficulty-box mt-1">
+                  <div className="box-header">
+                    <Zap size={20} color="var(--secondary)" />
+                    <h3>Número de Preguntas</h3>
+                  </div>
+                  <div className="question-count-options">
+                    <button
+                      className={`count-btn ${selectedQuestionCount === qMin ? 'active' : ''}`}
+                      onClick={() => setSelectedQuestionCount(qMin)}
+                    >
+                      <span>Min (50%)</span>
+                      <strong>{qMin}</strong>
+                    </button>
+                    <button
+                      className={`count-btn ${selectedQuestionCount === qMid ? 'active' : ''}`}
+                      onClick={() => setSelectedQuestionCount(qMid)}
+                    >
+                      <span>Med (75%)</span>
+                      <strong>{qMid}</strong>
+                    </button>
+                    <button
+                      className={`count-btn ${selectedQuestionCount === qMax ? 'active' : ''}`}
+                      onClick={() => setSelectedQuestionCount(qMax)}
+                    >
+                      <span>Max (100%)</span>
+                      <strong>{qMax}</strong>
+                    </button>
+                  </div>
+                </div>
               </div>
 
               <div className="mode-options">
                 <div
-                  className={`mode-card ${examMode === 'simulator' ? 'active' : ''}`}
+                  className="mode-card"
                   onClick={() => handleStartExamData(activeExam, activeDifficulty, 'simulator')}
                 >
                   <div className="mode-icon simulator">
@@ -314,7 +357,7 @@ function App() {
                 </div>
 
                 <div
-                  className={`mode-card ${examMode === 'real' ? 'active' : ''}`}
+                  className="mode-card"
                   onClick={() => handleStartExamData(activeExam, activeDifficulty, 'real')}
                 >
                   <div className="mode-icon exam">
@@ -333,7 +376,7 @@ function App() {
 
             <div className="selection-footer">
               <AlertCircle size={14} />
-              <span>Puedes cambiar de modo en cualquier momento tras finalizar.</span>
+              <span>Cubriendo todas las áreas: {activeExam.domains.length} dominios oficiales.</span>
             </div>
           </div>
         </div>
@@ -341,39 +384,51 @@ function App() {
     }
 
     return examMode === 'simulator'
-      ? <div className="app-container"><SimulatorView exam={activeExam} initialQuestions={currentQuestions} onExit={() => { setActiveExam(null); setExamMode(null); }} onFinish={handleFinishExam} /></div>
-      : <div className="app-container"><RealExamView exam={activeExam} initialQuestions={currentQuestions} onExit={() => { setActiveExam(null); setExamMode(null); }} onFinish={handleFinishExam} /></div>;
+      ? <div className="simulator-fullscreen"><SimulatorView exam={activeExam} initialQuestions={currentQuestions} onExit={() => { setActiveExam(null); setExamMode(null); }} onFinish={handleFinishExam} /></div>
+      : <div className="simulator-fullscreen"><RealExamView exam={activeExam} initialQuestions={currentQuestions} onExit={() => { setActiveExam(null); setExamMode(null); }} onFinish={handleFinishExam} /></div>;
   }
 
   return (
     <div className="app-container">
-      {user.role === 'admin' ? (
-        <AdminDashboard
-          users={[profile]}
-          exams={exams}
-          attempts={attempts}
-          onAddExam={handleAddExam}
-          onDeleteExam={handleDeleteExam}
-        />
-      ) : (
-        <UserDashboard
-          user={profile}
-          attempts={attempts}
-          exams={exams}
-          studyGuide={studyGuide}
-          isGeneratingGuide={isGeneratingGuide}
-          onStartExam={handleStartExam}
-          onViewDetail={(id) => console.log('View detail', id)}
-          onGenerateGuide={handleGenerateStudyGuide}
-          onToggleTask={(taskId) => {
-            if (!studyGuide) return;
-            const updatedTasks = studyGuide.tasks.map(t =>
-              t.id === taskId ? { ...t, completed: !t.completed } : t
-            );
-            setStudyGuide({ ...studyGuide, tasks: updatedTasks });
-          }}
-        />
-      )}
+      <Sidebar
+        user={profile}
+        isAdmin={user.role === 'admin'}
+        activeView={dashboardView}
+        onViewChange={setDashboardView}
+        onLogout={logout}
+      />
+
+      <main className="main-content">
+        {user.role === 'admin' ? (
+          <AdminDashboard
+            users={[profile]}
+            exams={exams}
+            attempts={attempts}
+            onAddExam={handleAddExam}
+            onDeleteExam={handleDeleteExam}
+            initialView={dashboardView as any}
+          />
+        ) : (
+          <UserDashboard
+            user={profile}
+            attempts={attempts}
+            exams={exams}
+            studyGuide={studyGuide}
+            isGeneratingGuide={isGeneratingGuide}
+            onStartExam={handleStartExam}
+            onViewDetail={(id) => console.log('View detail', id)}
+            onGenerateGuide={handleGenerateStudyGuide}
+            onToggleTask={(taskId) => {
+              if (!studyGuide) return;
+              const updatedTasks = studyGuide.tasks.map(t =>
+                t.id === taskId ? { ...t, completed: !t.completed } : t
+              );
+              setStudyGuide({ ...studyGuide, tasks: updatedTasks });
+            }}
+            initialTab={dashboardView as any}
+          />
+        )}
+      </main>
 
       {showCommitment && (
         <StudyCommitment
@@ -381,28 +436,6 @@ function App() {
           onCancel={() => { setActiveExam(null); setShowCommitment(false); }}
         />
       )}
-
-      <div className="role-switcher">
-        <div className="lang-selector mb-1">
-          <Globe size={14} />
-          <button
-            className={`lang-btn ${language === 'es' ? 'active' : ''}`}
-            onClick={() => setLanguage('es')}
-          >
-            ES
-          </button>
-          <button
-            className={`lang-btn ${language === 'en' ? 'active' : ''}`}
-            onClick={() => setLanguage('en')}
-          >
-            EN
-          </button>
-        </div>
-        <button className="switch-btn" onClick={logout}>
-          <LogOut size={14} />
-          Cerrar Sesión ({user.username})
-        </button>
-      </div>
     </div>
   )
 }
