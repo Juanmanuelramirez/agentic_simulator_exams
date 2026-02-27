@@ -1,46 +1,26 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import type { Exam, Question } from '../types';
-import { solver } from '../agents/solver';
 import QuestionCard from './QuestionCard';
-import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
-import { useLanguage } from './LanguageContext';
+import { ChevronLeft, Loader2 } from 'lucide-react';
 
 interface SimulatorViewProps {
   exam: Exam;
+  initialQuestions: Question[];
   onExit: () => void;
+  onFinish: (questions: Question[]) => void;
 }
-const SimulatorView: React.FC<SimulatorViewProps> = ({ exam, onExit }) => {
-  const { language } = useLanguage();
-  const [questions, setQuestions] = useState<Question[]>([]);
+
+const SimulatorView: React.FC<SimulatorViewProps> = ({ exam, initialQuestions, onExit, onFinish }) => {
+  const [questions, setQuestions] = useState<Question[]>(initialQuestions);
   const [currentIdx, setCurrentIdx] = useState(0);
-  const [loading, setLoading] = useState(false);
 
-  const loadNextQuestion = React.useCallback(async () => {
-    if (questions.length > currentIdx && currentIdx < 9) {
+  const handleNext = () => {
+    if (currentIdx < questions.length - 1) {
       setCurrentIdx(currentIdx + 1);
-      return;
+    } else {
+      onFinish(questions);
     }
-
-    if (questions.length >= 10) return;
-
-    setLoading(true);
-    try {
-      const newQuestion = await solver.generateQuestion(exam, 'intermediate', language);
-      setQuestions([...questions, newQuestion]);
-      if (questions.length > 0) {
-        setCurrentIdx(questions.length);
-      }
-    } catch (error) {
-      console.error("Failed to generate question", error);
-    } finally {
-      setLoading(false);
-    }
-  }, [exam, questions, currentIdx, language]);
-
-  // Load first question on start
-  useEffect(() => {
-    loadNextQuestion();
-  }, [loadNextQuestion]);
+  };
 
   const currentQuestion = questions[currentIdx];
 
@@ -57,25 +37,30 @@ const SimulatorView: React.FC<SimulatorViewProps> = ({ exam, onExit }) => {
   };
 
   return (
-    <div className="simulator-view fade-in">
-      <nav className="simulator-nav glass">
-        <button onClick={onExit} className="exit-btn"><ChevronLeft size={20} /> Salir</button>
-        <div className="exam-info">
-          <span className="exam-name">{exam.name}</span>
-          <span className="question-count">Pregunta {currentIdx + 1}</span>
+    <div className="simulator-view animate-fade-in">
+      <nav className="simulator-header">
+        <div className="header-left">
+          <button onClick={onExit} className="back-btn"><ChevronLeft size={20} /></button>
+          <div className="exam-info-header">
+            <span className="exam-name-badge">{exam.name}</span>
+            <span className="question-count-badge">Pregunta {currentIdx + 1}/{questions.length}</span>
+          </div>
         </div>
-        <div className="progress-bar">
-          <div className="progress-fill" style={{ width: `${((currentIdx + 1) / 10) * 100}%` }}></div>
+
+        <div className="header-right">
+          <div className="status-badge-saved">
+            <div className="save-dot" />
+            ✓ Guardado
+          </div>
         </div>
       </nav>
 
+      <div className="exam-progress-container">
+        <div className="exam-progress-bar" style={{ width: `${((currentIdx + 1) / questions.length) * 100}%` }}></div>
+      </div>
+
       <div className="simulator-content">
-        {loading ? (
-          <div className="loading-state">
-            <Loader2 className="animate-spin" size={40} color="var(--primary-color)" />
-            <p>El Agente Solver está generando tu pregunta...</p>
-          </div>
-        ) : currentQuestion ? (
+        {currentQuestion ? (
           <>
             <QuestionCard
               question={currentQuestion}
@@ -84,158 +69,87 @@ const SimulatorView: React.FC<SimulatorViewProps> = ({ exam, onExit }) => {
               userSelectedIds={currentQuestion.user_selected_ids}
             />
 
-            <div className="action-bar">
-              {!currentQuestion.is_verified && (
+            <div className="bottom-action-bar">
+              <button
+                onClick={() => setCurrentIdx(Math.max(0, currentIdx - 1))}
+                disabled={currentIdx === 0}
+                className="secondary"
+              >
+                Anterior
+              </button>
+
+              {!currentQuestion.is_verified ? (
                 <button
                   onClick={handleVerify}
-                  className="btn-verify"
+                  className="primary"
                   disabled={!currentQuestion.user_selected_ids?.length}
                 >
-                  Verificar Respuesta
+                  Verificar
+                </button>
+              ) : (
+                <button onClick={handleNext} className="primary">
+                  {currentIdx === questions.length - 1 ? 'Finalizar' : 'Siguiente'}
                 </button>
               )}
-
-              <div className="nav-buttons">
-                <button
-                  onClick={() => setCurrentIdx(Math.max(0, currentIdx - 1))}
-                  disabled={currentIdx === 0}
-                  className="btn-nav"
-                >
-                  <ChevronLeft /> Anterior
-                </button>
-
-                <button
-                  onClick={loadNextQuestion}
-                  disabled={currentIdx >= 9 && !!currentQuestion.is_verified}
-                  className="btn-nav primary"
-                >
-                  {currentIdx === questions.length - 1 ? 'Próxima' : 'Siguiente'} <ChevronRight />
-                </button>
-              </div>
             </div>
           </>
-        ) : null}
+        ) : (
+          <div className="loading-state">
+            <Loader2 className="animate-spin" size={40} />
+            <p>Cargando preguntas...</p>
+          </div>
+        )}
       </div>
 
       <style>{`
         .simulator-view {
-          position: fixed;
-          top: 0;
-          left: 0;
-          right: 0;
-          bottom: 0;
-          background: var(--bg-color);
-          z-index: 2000;
-          display: flex;
-          flex-direction: column;
+          position: fixed; inset: 0; background: var(--bg-main); z-index: 2000;
+          display: flex; flex-direction: column;
         }
-        .simulator-nav {
-          padding: 1rem;
-          display: grid;
-          grid-template-columns: auto 1fr auto;
-          align-items: center;
-          gap: 20px;
-          border-bottom: 1px solid rgba(0,0,0,0.05);
+        .simulator-header {
+          display: flex; justify-content: space-between; align-items: center;
+          padding: 1rem 2rem; background: var(--bg-card); backdrop-filter: var(--glass-blur); border-bottom: 1px solid var(--border-default);
         }
-        .exit-btn {
-          display: flex;
-          align-items: center;
-          background: none;
-          border: none;
-          color: var(--text-secondary);
-          font-weight: 500;
-        }
-        .exam-info {
-          text-align: center;
-          display: flex;
-          flex-direction: column;
-        }
-        .exam-name { font-weight: 600; font-size: 0.9rem; }
-        .question-count { font-size: 0.8rem; color: var(--text-secondary); }
+        .header-left { display: flex; align-items: center; gap: 1.5rem; }
+        .exam-info-header { display: flex; flex-direction: column; }
+        .exam-name-badge { font-weight: 700; color: var(--text-main); font-size: 0.9375rem; }
+        .question-count-badge { font-size: 0.8125rem; color: var(--text-secondary); font-weight: 500; }
         
-        .progress-bar {
-          grid-column: 1 / span 3;
-          height: 4px;
-          background: #E2E8F0;
-          border-radius: 2px;
-          overflow: hidden;
+        .status-badge-saved {
+            display: flex; align-items: center; gap: 0.5rem;
+            padding: 0.375rem 0.75rem; border-radius: 20px;
+            background: rgba(16, 185, 129, 0.1); color: #10b981; font-size: 0.8125rem; font-weight: 600;
+            border: 1px solid rgba(16, 185, 129, 0.2);
         }
-        .progress-fill {
-          height: 100%;
-          background: var(--primary-color);
-          transition: width 0.3s ease;
-        }
+        .save-dot { width: 6px; height: 6px; border-radius: 50%; background: #22c55e; }
+
+        .exam-progress-container { width: 100%; height: 4px; background: rgba(255, 255, 255, 0.05); }
+        .exam-progress-bar { height: 100%; background: var(--secondary); transition: width 0.3s; box-shadow: 0 0 10px var(--secondary); }
 
         .simulator-content {
-          flex: 1;
-          padding: 2rem 1.5rem;
-          max-width: 800px;
-          margin: 0 auto;
-          width: 100%;
-          overflow-y: auto;
+          flex: 1; padding: 2rem; max-width: 900px; margin: 0 auto; width: 100%; overflow-y: auto;
+          padding-bottom: 100px;
         }
 
-        .loading-state {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          height: 50vh;
-          gap: 20px;
-          color: var(--text-secondary);
+        .bottom-action-bar {
+            position: fixed; bottom: 0; left: 0; right: 0;
+            padding: 1.25rem 2rem; background: var(--bg-card); backdrop-filter: var(--glass-blur);
+            border-top: 1px solid var(--border-default);
+            display: flex; justify-content: space-between; gap: 1rem;
+            max-width: 900px; margin: 0 auto;
+            z-index: 10;
         }
+        
+        button { border-radius: 12px; font-weight: 600; padding: 0.75rem 1.5rem; cursor: pointer; transition: all 0.2s; }
+        button.primary { background: var(--primary); color: white; border: none; flex: 1; max-width: 200px; }
+        button.primary:hover { border-color: white; transform: translateY(-1px); box-shadow: 0 0 20px rgba(99, 102, 241, 0.4); }
+        button.secondary { background: rgba(255, 255, 255, 0.05); border: 1px solid var(--border-default); color: var(--text-main); }
+        button.secondary:hover { background: rgba(255, 255, 255, 0.1); }
+        button:disabled { opacity: 0.5; cursor: not-allowed; transform: none !important; }
 
-        .action-bar {
-          margin-top: 2rem;
-          display: flex;
-          flex-direction: column;
-          gap: 1rem;
-          padding-bottom: 4rem;
-        }
-
-        .btn-verify {
-          background: var(--primary-color);
-          color: white;
-          border: none;
-          border-radius: var(--radius-md);
-          padding: 1rem;
-          font-weight: 600;
-          cursor: pointer;
-        }
-
-        .btn-verify:disabled {
-          background: var(--secondary-color);
-          opacity: 0.5;
-          cursor: not-allowed;
-        }
-
-        .nav-buttons {
-          display: flex;
-          justify-content: space-between;
-          gap: 1rem;
-        }
-
-        .btn-nav {
-          flex: 1;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          background: white;
-          border: 1px solid #E2E8F0;
-          border-radius: var(--radius-md);
-          padding: 0.75rem;
-          font-weight: 500;
-        }
-
-        .btn-nav.primary {
-          background: var(--primary-color);
-          color: white;
-          border-color: var(--primary-color);
-        }
-
-        .btn-nav:disabled {
-          opacity: 0.3;
-        }
+        .loading-state { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 50vh; }
+        .back-btn { background: none; border: none; color: var(--text-secondary); cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0.5rem; border-radius: 50%; transition: background 0.2s; }
+        .back-btn:hover { background: rgba(255, 255, 255, 0.1); }
       `}</style>
     </div>
   );

@@ -1,0 +1,57 @@
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "s3:CreateBucket",
+                "s3:ListBucket",
+                "s3:GetBucketLocation",
+                "s3:GetBucketWebsite",
+                "s3:PutBucketWebsite",
+                "s3:PutBucketPolicy",
+                "s3:GetBucketPolicy",
+                "s3:DeleteBucketPolicy",
+                "s3:PutObject",
+                "s3:GetObject",
+                "s3:DeleteObject",
+                "s3:PutObjectAcl",
+                "s3:ListAllMyBuckets"
+            ],
+            "Resource": [
+                "arn:aws:s3:::agentic-exam-simulator-*",
+                "arn:aws:s3:::agentic-exam-simulator-*/*"
+            ]
+        },
+        {
+            "Effect": "Allow",
+            "Action": [
+                "cloudfront:CreateDistribution",
+                "cloudfront:GetDistribution",
+                "cloudfront:UpdateDistribution",
+                "cloudfront:DeleteDistribution",
+                "cloudfront:CreateInvalidation",
+                "cloudfront:ListDistributions",
+                "cloudfront:CreateOriginAccessControl",
+                "cloudfront:GetOriginAccessControl"
+            ],
+            "Resource": "*"
+        },
+        {
+            "Effect": "Allow",
+            "Action": [
+                "cognito-idp:CreateUserPool",
+                "cognito-idp:UpdateUserPool",
+                "cognito-idp:DescribeUserPool",
+                "cognito-idp:ListUserPools",
+                "cognito-idp:CreateUserPoolClient",
+                "cognito-idp:UpdateUserPoolClient",
+                "cognito-idp:DescribeUserPoolClient",
+                "cognito-idp:AdminUpdateUserAttributes",
+                "cognito-idp:CreateUserPoolDomain",
+                "cognito-idp:DescribeUserPoolDomain"
+            ],
+            "Resource": "*"
+        }
+    ]
+}

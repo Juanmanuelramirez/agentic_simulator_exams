@@ -71,24 +71,40 @@ const ExamResults: React.FC<ExamResultsProps> = ({ questions, onExit, onRetry })
         .results-header.passed { background: var(--success-color); }
         .results-header.failed { background: var(--error-color); }
         .score-circle {
-          width: 120px; height: 120px; border-radius: 50%;
-          border: 4px solid rgba(255,255,255,0.3); margin: 0 auto 1.5rem;
+          width: 140px; height: 140px; border-radius: 50%;
+          border: 4px solid rgba(255,255,255,0.2); margin: 0 auto 1.5rem;
           display: flex; flex-direction: column; align-items: center; justify-content: center;
+          background: rgba(255,255,255,0.05);
+          backdrop-filter: blur(5px);
         }
-        .score-value { font-size: 2rem; font-weight: 700; }
-        .score-label { font-size: 0.7rem; font-weight: 600; opacity: 0.9; }
-        .results-content { max-width: 800px; margin: -2rem auto 0; padding: 0 1.5rem; }
-        .action-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 3rem; }
+        .score-value { font-size: 2.5rem; font-weight: 800; }
+        .score-label { font-size: 0.8rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; }
+        .results-content { max-width: 800px; margin: -3rem auto 0; padding: 0 1.5rem; }
+        .action-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 3rem; }
         .card-action {
-          background: white; border: none; border-radius: var(--radius-lg); padding: 1.5rem;
-          display: flex; flex-direction: column; align-items: center; gap: 10px;
-          box-shadow: var(--shadow-md); font-weight: 600; color: var(--text-primary);
+          background: rgba(15, 23, 42, 0.95); 
+          border: 1px solid rgba(255, 255, 255, 0.1); 
+          border-radius: var(--radius-md); 
+          padding: 2rem 1.5rem;
+          display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
+          box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4); 
+          font-weight: 700; color: #ffffff;
+          cursor: pointer;
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
-        .review-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; padding: 0 10px; }
-        .q-number { font-weight: 600; color: var(--text-secondary); }
-        .status { display: flex; align-items: center; gap: 5px; font-weight: 600; font-size: 0.9rem; }
-        .status.success { color: var(--success-color); }
-        .status.error { color: var(--error-color); }
+        .card-action:hover {
+          transform: translateY(-5px);
+          background: #1e293b;
+          border-color: rgba(255, 255, 255, 0.3);
+          box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+        }
+        .card-action span { font-size: 1rem; letter-spacing: 0.02em; }
+        .review-header { display: flex; justify-content: space-between; align-items: center; margin-top: 2rem; margin-bottom: 1.5rem; padding: 0 10px; }
+        .q-number { font-weight: 700; color: #ffffff; font-size: 1.1rem; }
+        .status { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 0.95rem; }
+        .status.success { color: #34d399; }
+        .status.error { color: #fb7185; }
+        h3 { color: #ffffff; margin-top: 3rem; font-weight: 700; font-size: 1.5rem; }
       `}</style>
         </div>
     );

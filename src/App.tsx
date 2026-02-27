@@ -7,11 +7,15 @@ import UserDashboard from './components/UserDashboard'
 import AdminDashboard from './components/AdminDashboard'
 import StudyCommitment from './components/StudyCommitment'
 import { librarian } from './agents/librarian'
-import type { Exam, Question, ExamAttempt, UserProfile, Difficulty } from './types'
-import { Globe, LogOut, Loader2 } from 'lucide-react'
+import { solver } from './agents/solver'
+import { mentor } from './agents/mentor'
+import type { Exam, Question, ExamAttempt, UserProfile, Difficulty, StudyGuide } from './types'
+import { Globe, LogOut, Loader2, Zap, Award, Target, BookOpen, AlertCircle, ChevronLeft } from 'lucide-react'
 import { useLanguage } from './components/LanguageContext'
 import { useAuth } from './components/AuthContext'
 import LoginView from './components/LoginView'
+
+import { dbService } from './services/db'
 
 function App() {
   const { language, setLanguage } = useLanguage();
@@ -23,6 +27,8 @@ function App() {
   const [results, setResults] = useState<Question[] | null>(null);
   const [attempts, setAttempts] = useState<ExamAttempt[]>([]);
   const [exams, setExams] = useState<Exam[]>([]);
+  const [studyGuide, setStudyGuide] = useState<StudyGuide | null>(null);
+  const [isGeneratingGuide, setIsGeneratingGuide] = useState(false);
 
   const [profile, setProfile] = useState<UserProfile>({
     id: 'user-123',
@@ -38,7 +44,7 @@ function App() {
     }
   });
 
-  // Sync profile with authenticated user
+  // Sync profile and Load User Performance from DynamoDB
   useEffect(() => {
     if (user) {
       setProfile(prev => ({
@@ -47,34 +53,115 @@ function App() {
         name: user.username,
         email: user.email || ''
       }));
+
+      // Load real attempts from DB
+      const loadUserHistory = async () => {
+        try {
+          const history = await dbService.getUserAttempts(user.id);
+          setAttempts(history);
+        } catch (error) {
+          console.error("Failed to load history from DynamoDB", error);
+        }
+      };
+      loadUserHistory();
     }
   }, [user]);
 
-  const [usersList] = useState<UserProfile[]>([
-    profile,
-    { id: 'user-456', name: 'Maria Garcia', email: 'maria@example.com', streak: 12, last_access: new Date().toISOString(), preferred_language: 'es', study_commitment: { days: [], time: '', notifications: false } }
-  ]);
-
   const [showCommitment, setShowCommitment] = useState(false);
 
-  // Initial data load
+  // Production Load: All exams come from DynamoDB
   useEffect(() => {
-    const loadInitialExams = async () => {
-      const defaultExam = await librarian.discoverExam('AWS Certified Solutions Architect - Associate');
-      setExams([defaultExam]);
+    const loadProductionExams = async () => {
+      if (!dbService.hasValidCredentials()) {
+        console.warn("AWS Credentials not configured in .env. Persistence will fail.");
+        return;
+      }
+
+      try {
+        console.log("Loading exams from DynamoDB...");
+        const dbExams = await dbService.getExams();
+        console.log(`Loaded ${dbExams.length} exams.`);
+
+        if (dbExams.length === 0) {
+          console.log("Database empty. Performing cold start discovery...");
+          const defaultExam = await librarian.discoverExam('AWS Certified Solutions Architect - Associate');
+          setExams([defaultExam]);
+        } else {
+          setExams(dbExams);
+        }
+      } catch (error) {
+        console.error("Database connection failure", error);
+      }
     };
-    loadInitialExams();
+    loadProductionExams();
   }, []);
+
+  const [generatingQuestions, setGeneratingQuestions] = useState(false);
+  const [currentQuestions, setCurrentQuestions] = useState<Question[]>([]);
+
+  const handleAddExam = async (examName: string) => {
+    console.log(`Starting addition of exam: ${examName}`);
+    setGeneratingQuestions(true);
+    try {
+      if (!dbService.hasValidCredentials()) {
+        throw new Error("AWS_CREDENTIALS_MISSING: Verifica las variables de entorno en .env");
+      }
+
+      const newExam = await librarian.discoverExam(examName);
+      console.log("Exam discovered and saved:", newExam);
+
+      setExams(prev => {
+        const filtered = prev.filter(e => e.id !== newExam.id);
+        const updated = [...filtered, newExam];
+        console.log("Updated exams state length:", updated.length);
+        return updated;
+      });
+    } catch (error: any) {
+      console.error("Failed to add exam:", error);
+      const msg = error.message?.includes('AWS_CREDENTIALS_MISSING')
+        ? "Error: Credenciales de AWS no configuradas."
+        : "Error al añadir el simulador. Revisa la consola para más detalles.";
+      alert(msg);
+      throw error;
+    } finally {
+      setGeneratingQuestions(false);
+    }
+  };
+
+  const handleDeleteExam = async (examId: string) => {
+    try {
+      await dbService.deleteExam(examId);
+      setExams(prev => prev.filter(e => e.id !== examId));
+    } catch (error) {
+      console.error("Failed to delete exam from DB", error);
+    }
+  };
+
+  const handleStartExamData = async (exam: Exam, difficulty: Difficulty, mode: 'simulator' | 'real') => {
+    setGeneratingQuestions(true);
+    setExamMode(mode);
+    try {
+      const batch = await solver.generateBatch(exam, 10, difficulty, language);
+      setCurrentQuestions(batch);
+    } catch (error) {
+      console.error("Failed to generate questions", error);
+      alert("Error al generar las preguntas. Intenta de nuevo.");
+      setExamMode(null);
+    } finally {
+      setGeneratingQuestions(false);
+    }
+  };
 
   const handleStartExam = (examId: string) => {
     const exam = exams.find(e => e.id === examId);
     if (exam) {
       setActiveExam(exam);
-      setExamMode(null); // Force mode selection
+      setExamMode(null);
+      setCurrentQuestions([]);
     }
   };
 
-  const handleFinishExam = (finishedQuestions: Question[]) => {
+  const handleFinishExam = async (finishedQuestions: Question[]) => {
     const score = Math.round((finishedQuestions.filter(q => {
       const selected = q.user_selected_ids || [];
       const correct = q.correct_ids;
@@ -93,7 +180,16 @@ function App() {
       score
     };
 
-    setAttempts([newAttempt, ...attempts]);
+    // Global persistence in DynamoDB
+    if (user) {
+      try {
+        await dbService.saveAttempt({ ...newAttempt, user_id: user.id });
+        setAttempts(prev => [newAttempt, ...prev]);
+      } catch (error) {
+        console.error("Failed to save attempt to DynamoDB", error);
+      }
+    }
+
     setResults(finishedQuestions);
   };
 
@@ -102,11 +198,24 @@ function App() {
     setShowCommitment(false);
   };
 
-  const handleAddExam = async (partialExam: Partial<Exam>) => {
-    const newExam = await librarian.discoverExam(partialExam.name || 'Nueva Certificación');
-    setExams([...exams, newExam]);
-    alert('Simulador añadido exitosamente por la IA.');
+  const handleGenerateStudyGuide = async () => {
+    if (attempts.length === 0) {
+      alert("Completa al menos un examen para generar una guía personalizada.");
+      return;
+    }
+
+    setIsGeneratingGuide(true);
+    try {
+      const guide = await mentor.generateStudyGuide(attempts, exams, language);
+      setStudyGuide(guide);
+    } catch (error: any) {
+      console.error("Failed to generate study guide", error);
+      alert(`Error al generar la guía: ${error.message || 'Error desconocido'}. Revisa los datos de tus exámenes.`);
+    } finally {
+      setIsGeneratingGuide(false);
+    }
   };
+
 
   if (loading) {
     return (
@@ -132,17 +241,18 @@ function App() {
   }
 
   if (activeExam) {
-    if (!profile.study_commitment.days.length && !showCommitment) {
+    if (!profile.study_commitment?.days?.length && !showCommitment) {
       setShowCommitment(true);
     }
 
-    if (showCommitment) {
+    if (generatingQuestions) {
       return (
-        <div className="app-container">
-          <StudyCommitment
-            onSave={handleSaveCommitment}
-            onCancel={() => { setActiveExam(null); setShowCommitment(false); }}
-          />
+        <div className="app-container flex-center">
+          <div className="loading-state card fade-in text-center">
+            <Loader2 className="animate-spin mb-1" size={48} color="var(--primary-color)" />
+            <h2>Generando tu simulador...</h2>
+            <p className="text-muted">El Agente AI (Bedrock) está creando 10 preguntas personalizadas para ti.</p>
+          </div>
         </div>
       );
     }
@@ -150,60 +260,125 @@ function App() {
     if (!examMode) {
       return (
         <div className="app-container flex-center">
-          <div className="mode-selection card fade-in">
-            <h2 className="mb-1">{activeExam.name}</h2>
-            <p className="text-muted mb-2">Configura tu sesión de práctica</p>
-
-            <div className="difficulty-selector mb-2">
-              <label>Dificultad:</label>
-              <select
-                value={activeDifficulty}
-                onChange={(e) => setActiveDifficulty(e.target.value as Difficulty)}
-                className="select-input"
-              >
-                <option value="beginner">Principiante (Focus en conceptos)</option>
-                <option value="intermediate">Intermedio (Escenarios reales)</option>
-                <option value="advanced">Avanzado (Casos críticos)</option>
-              </select>
+          <div className="mode-selection-container glass fade-in">
+            <div className="selection-header">
+              <button onClick={() => setActiveExam(null)} className="back-btn">
+                <ChevronLeft size={20} />
+              </button>
+              <div className="exam-badge">
+                <BookOpen size={14} />
+                <span>Examen Seleccionado</span>
+              </div>
             </div>
 
-            <div className="selection-cards grid">
-              <button className="card selection-card" onClick={() => setExamMode('simulator')}>
-                <h3>Modo Simulador</h3>
-                <p>Feedback inmediato de IA (Bedrock)</p>
-              </button>
-              <button className="card selection-card" onClick={() => setExamMode('real')}>
-                <h3>Modo Examen</h3>
-                <p>Tiempo limitado, sin ayudas</p>
-              </button>
+            <h1 className="exam-title">{activeExam.name}</h1>
+            <p className="exam-subtitle">Configura tu experiencia de aprendizaje para hoy</p>
+
+            <div className="setup-grid">
+              <div className="difficulty-box card">
+                <div className="box-header">
+                  <Target size={20} color="var(--primary-color)" />
+                  <h3>Nivel de Dificultad</h3>
+                </div>
+                <select
+                  value={activeDifficulty}
+                  onChange={(e) => setActiveDifficulty(e.target.value as Difficulty)}
+                  className="difficulty-select"
+                >
+                  <option value="beginner">Principiante (Básico)</option>
+                  <option value="intermediate">Intermedio (Estándar)</option>
+                  <option value="advanced">Avanzado (Complejo)</option>
+                </select>
+                <p className="difficulty-hint">
+                  {activeDifficulty === 'beginner' && "Ideal para repasar conceptos fundamentales."}
+                  {activeDifficulty === 'intermediate' && "Equilibrado para preparación de certificación."}
+                  {activeDifficulty === 'advanced' && "Desafiante con escenarios críticos de negocio."}
+                </p>
+              </div>
+
+              <div className="mode-options">
+                <div
+                  className={`mode-card ${examMode === 'simulator' ? 'active' : ''}`}
+                  onClick={() => handleStartExamData(activeExam, activeDifficulty, 'simulator')}
+                >
+                  <div className="mode-icon simulator">
+                    <Zap size={24} />
+                  </div>
+                  <div className="mode-info">
+                    <h3>Modo Simulador</h3>
+                    <p>Feedback inmediato de IA y explicaciones profundas.</p>
+                  </div>
+                  <div className="mode-action">
+                    <span>Empezar</span>
+                  </div>
+                </div>
+
+                <div
+                  className={`mode-card ${examMode === 'real' ? 'active' : ''}`}
+                  onClick={() => handleStartExamData(activeExam, activeDifficulty, 'real')}
+                >
+                  <div className="mode-icon exam">
+                    <Award size={24} />
+                  </div>
+                  <div className="mode-info">
+                    <h3>Modo Examen</h3>
+                    <p>Condiciones reales, tiempo limitado y sin ayudas.</p>
+                  </div>
+                  <div className="mode-action">
+                    <span>Empezar</span>
+                  </div>
+                </div>
+              </div>
             </div>
-            <button onClick={() => setActiveExam(null)} className="text-btn mt-2">Cancelar</button>
+
+            <div className="selection-footer">
+              <AlertCircle size={14} />
+              <span>Puedes cambiar de modo en cualquier momento tras finalizar.</span>
+            </div>
           </div>
         </div>
       );
     }
 
     return examMode === 'simulator'
-      ? <div className="app-container"><SimulatorView exam={activeExam} onExit={() => { setActiveExam(null); setExamMode(null); }} /></div>
-      : <div className="app-container"><RealExamView exam={activeExam} onExit={() => { setActiveExam(null); setExamMode(null); }} onFinish={handleFinishExam} /></div>;
+      ? <div className="app-container"><SimulatorView exam={activeExam} initialQuestions={currentQuestions} onExit={() => { setActiveExam(null); setExamMode(null); }} onFinish={handleFinishExam} /></div>
+      : <div className="app-container"><RealExamView exam={activeExam} initialQuestions={currentQuestions} onExit={() => { setActiveExam(null); setExamMode(null); }} onFinish={handleFinishExam} /></div>;
   }
 
   return (
     <div className="app-container">
-      {user.role === 'user' ? (
+      {user.role === 'admin' ? (
+        <AdminDashboard
+          users={[profile]}
+          exams={exams}
+          attempts={attempts}
+          onAddExam={handleAddExam}
+          onDeleteExam={handleDeleteExam}
+        />
+      ) : (
         <UserDashboard
           user={profile}
           attempts={attempts}
           exams={exams}
+          studyGuide={studyGuide}
+          isGeneratingGuide={isGeneratingGuide}
           onStartExam={handleStartExam}
           onViewDetail={(id) => console.log('View detail', id)}
+          onGenerateGuide={handleGenerateStudyGuide}
+          onToggleTask={(taskId) => {
+            if (!studyGuide) return;
+            const updatedTasks = studyGuide.tasks.map(t =>
+              t.id === taskId ? { ...t, completed: !t.completed } : t
+            );
+            setStudyGuide({ ...studyGuide, tasks: updatedTasks });
+          }}
         />
-      ) : (
-        <AdminDashboard
-          users={usersList}
-          exams={exams}
-          attempts={attempts}
-          onAddExam={handleAddExam}
+      )}
+
+      {showCommitment && (
+        <StudyCommitment
+          onSave={handleSaveCommitment}
+          onCancel={() => { setActiveExam(null); setShowCommitment(false); }}
         />
       )}
 

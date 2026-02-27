@@ -1,0 +1,77 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Infraestructura de Base de Datos para Agentic Exam Simulator (Simuladores, Preguntas e Intentos).'
+
+Resources:
+  # Tabla de Simuladores (Blueprints de Certificación)
+  SimulatorsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: 'ExamSimulator-Simulators'
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      BillingMode: PAY_PER_REQUEST
+      Tags:
+        - Key: Project
+          Value: AgenticSimulator
+
+  # Tabla de Preguntas (Banco de preguntas generadas)
+  QuestionsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: 'ExamSimulator-Questions'
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+        - AttributeName: exam_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: ExamQuestionsIndex
+          KeySchema:
+            - AttributeName: exam_id
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+      BillingMode: PAY_PER_REQUEST
+      Tags:
+        - Key: Project
+          Value: AgenticSimulator
+
+  # Tabla de Intentos (Desempeño del Usuario)
+  AttemptsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: 'ExamSimulator-Attempts'
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+        - AttributeName: user_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: UserAttemptsIndex
+          KeySchema:
+            - AttributeName: user_id
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+      BillingMode: PAY_PER_REQUEST
+      Tags:
+        - Key: Project
+          Value: AgenticSimulator
+
+Outputs:
+  SimulatorsTableName:
+    Value: !Ref SimulatorsTable
+  QuestionsTableName:
+    Value: !Ref QuestionsTable
+  AttemptsTableName:
+    Value: !Ref AttemptsTable

@@ -1,37 +1,23 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import type { Exam, Question } from '../types';
-import { solver } from '../agents/solver';
 import QuestionCard from './QuestionCard';
 import { ChevronLeft, ChevronRight, Clock, Send } from 'lucide-react';
 
 interface RealExamViewProps {
     exam: Exam;
+    initialQuestions: Question[];
     onExit: () => void;
     onFinish: (questions: Question[]) => void;
 }
 
-const RealExamView: React.FC<RealExamViewProps> = ({ exam, onExit, onFinish }) => {
-    const [questions, setQuestions] = useState<Question[]>([]);
+const RealExamView: React.FC<RealExamViewProps> = ({ exam, initialQuestions, onExit, onFinish }) => {
+    const [questions, setQuestions] = useState<Question[]>(initialQuestions);
     const [currentIdx, setCurrentIdx] = useState(0);
-    const [loading, setLoading] = useState(true);
     const [timeLeft, setTimeLeft] = useState(exam.duration_minutes * 60);
 
     const handleFinish = useCallback(() => {
         onFinish(questions);
     }, [questions, onFinish]);
-
-    useEffect(() => {
-        const initExam = async () => {
-            const qList: Question[] = [];
-            for (let i = 0; i < 10; i++) {
-                const q = await solver.generateQuestion(exam);
-                qList.push({ ...q, is_verified: false });
-            }
-            setQuestions(qList);
-            setLoading(false);
-        };
-        initExam();
-    }, [exam]);
 
     useEffect(() => {
         if (timeLeft <= 0) {
@@ -59,112 +45,155 @@ const RealExamView: React.FC<RealExamViewProps> = ({ exam, onExit, onFinish }) =
 
     const currentQuestion = questions[currentIdx];
 
-    if (loading) {
-        return (
-            <div className="loading-overlay">
-                <Clock className="animate-pulse" size={48} color="var(--primary-color)" />
-                <h2>Iniciando Examen Real...</h2>
-                <p>Asegúrate de tener una conexión estable.</p>
-            </div>
-        );
-    }
-
     return (
-        <div className="real-exam-view fade-in">
-            <nav className="exam-nav glass">
-                <button onClick={onExit} className="exit-btn"><ChevronLeft size={20} /> Abortar</button>
-                <div className="timer-display">
-                    <Clock size={18} />
-                    <span className={timeLeft < 300 ? 'urgent' : ''}>{formatTime(timeLeft)}</span>
+        <div className="real-exam-view animate-fade-in">
+            <nav className="exam-header">
+                <div className="header-left">
+                    <button onClick={onExit} className="back-link"><ChevronLeft size={20} /> Abortar</button>
+                    <div className="exam-meta-info">
+                        <span className="exam-title">{exam.name}</span>
+                        <span className="question-index">Pregunta {currentIdx + 1} de {questions.length}</span>
+                    </div>
                 </div>
-                <button onClick={handleFinish} className="finish-btn"><Send size={18} /> Entregar</button>
+
+                <div className="header-center">
+                    <div className={`timer-badge ${timeLeft < 300 ? 'urgent' : ''}`}>
+                        <Clock size={18} />
+                        <span>{formatTime(timeLeft)}</span>
+                    </div>
+                </div>
+
+                <div className="header-right">
+                    <button onClick={handleFinish} className="submit-btn"><Send size={18} /> Entregar Examen</button>
+                </div>
             </nav>
 
-            <div className="exam-content">
-                <div className="navigation-grid">
-                    {questions.map((_, idx) => (
+            <div className="exam-main-layout">
+                <aside className="navigation-sidebar">
+                    <h3 className="sidebar-title">Navegación</h3>
+                    <div className="nav-grid">
+                        {questions.map((q, idx) => (
+                            <button
+                                key={idx}
+                                onClick={() => setCurrentIdx(idx)}
+                                className={`nav-item ${currentIdx === idx ? 'active' : ''} ${q.user_selected_ids?.length ? 'answered' : ''}`}
+                            >
+                                {idx + 1}
+                            </button>
+                        ))}
+                    </div>
+                </aside>
+
+                <main className="question-workspace">
+                    {currentQuestion && (
+                        <QuestionCard
+                            question={currentQuestion}
+                            onAnswer={handleAnswer}
+                            isVerified={false}
+                            userSelectedIds={currentQuestion.user_selected_ids}
+                        />
+                    )}
+
+                    <div className="question-navigation">
                         <button
-                            key={idx}
-                            onClick={() => setCurrentIdx(idx)}
-                            className={`nav-dot ${currentIdx === idx ? 'active' : ''} ${questions[idx].user_selected_ids?.length ? 'answered' : ''}`}
+                            disabled={currentIdx === 0}
+                            onClick={() => setCurrentIdx(currentIdx - 1)}
+                            className="nav-btn secondary"
                         >
-                            {idx + 1}
+                            <ChevronLeft size={20} /> Anterior
                         </button>
-                    ))}
-                </div>
-
-                {currentQuestion && (
-                    <QuestionCard
-                        question={currentQuestion}
-                        onAnswer={handleAnswer}
-                        isVerified={false}
-                        userSelectedIds={currentQuestion.user_selected_ids}
-                    />
-                )}
-
-                <div className="nav-controls">
-                    <button
-                        disabled={currentIdx === 0}
-                        onClick={() => setCurrentIdx(currentIdx - 1)}
-                        className="btn-nav"
-                    >
-                        <ChevronLeft /> Anterior
-                    </button>
-                    <button
-                        disabled={currentIdx === questions.length - 1}
-                        onClick={() => setCurrentIdx(currentIdx + 1)}
-                        className="btn-nav"
-                    >
-                        Siguiente <ChevronRight />
-                    </button>
-                </div>
+                        <button
+                            disabled={currentIdx === questions.length - 1}
+                            onClick={() => setCurrentIdx(currentIdx + 1)}
+                            className="nav-btn primary"
+                        >
+                            Siguiente <ChevronRight size={20} />
+                        </button>
+                    </div>
+                </main>
             </div>
 
             <style>{`
-        .real-exam-view {
-          position: fixed;
-          top: 0;
-          left: 0;
-          right: 0;
-          bottom: 0;
-          background: white;
-          z-index: 3000;
-          display: flex;
-          flex-direction: column;
-        }
-        .exam-nav {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          padding: 1rem 1.5rem;
-          background: #1E293B;
-          color: white;
-        }
-        .exit-btn, .finish-btn {
-          background: none; border: none; color: white;
-          font-weight: 500; display: flex; align-items: center; gap: 8px;
-        }
-        .timer-display {
-          display: flex; align-items: center; gap: 8px;
-          font-family: monospace; font-size: 1.2rem; font-weight: 600;
-          background: rgba(255,255,255,0.1); padding: 4px 12px; border-radius: 4px;
-        }
-        .urgent { color: #F87171; animation: blink 1s infinite; }
-        @keyframes blink { 50% { opacity: 0.5; } }
-        .exam-content { flex: 1; padding: 1.5rem; max-width: 800px; margin: 0 auto; width: 100%; overflow-y: auto; }
-        .navigation-grid { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 2rem; justify-content: center; }
-        .nav-dot {
-          width: 32px; height: 32px; border-radius: 4px; border: 1px solid #E2E8F0;
-          background: white; font-size: 0.8rem; display: flex; align-items: center; justify-content: center;
-        }
-        .nav-dot.active { border-color: var(--primary-color); background: #EEF2FF; font-weight: 700; }
-        .nav-dot.answered { background: #E2E8F0; }
-        .nav-controls { display: flex; justify-content: space-between; margin-top: 2rem; padding-bottom: 4rem; }
-        .loading-overlay {
-          position: fixed; inset: 0; background: white;
-          display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 4000;
-        }
-      `}</style>
+                .real-exam-view {
+                    position: fixed; inset: 0; background: var(--bg-main); z-index: 3000;
+                    display: flex; flex-direction: column;
+                }
+                .exam-header {
+                    display: flex; justify-content: space-between; align-items: center;
+                    padding: 1rem 2.5rem; background: var(--bg-card); backdrop-filter: var(--glass-blur); border-bottom: 1px solid var(--border-default);
+                    height: 80px; box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
+                }
+                .header-left { display: flex; align-items: center; gap: 2.5rem; flex: 1; }
+                .back-link { 
+                    display: flex; align-items: center; gap: 0.5rem; 
+                    background: rgba(255, 255, 255, 0.05); border: 1px solid var(--border-default); 
+                    color: var(--text-secondary); padding: 0.5rem 1rem; border-radius: 12px;
+                    font-weight: 600; cursor: pointer; font-size: 0.875rem;
+                    transition: all 0.2s;
+                }
+                .back-link:hover { background: rgba(244, 63, 94, 0.1); color: var(--error); border-color: rgba(244, 63, 94, 0.2); }
+                .exam-meta-info { display: flex; flex-direction: column; }
+                .exam-title { font-weight: 800; color: var(--text-main); font-size: 1.125rem; letter-spacing: -0.01em; }
+                .question-index { font-size: 0.875rem; color: var(--text-secondary); font-weight: 500; }
+
+                .header-center { flex: 1; display: flex; justify-content: center; }
+                .timer-badge {
+                    display: flex; align-items: center; gap: 0.75rem;
+                    padding: 0.625rem 1.5rem; border-radius: 99px;
+                    background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-default);
+                    font-family: 'Inter', sans-serif; font-weight: 750; font-size: 1.25rem;
+                    color: var(--text-main); min-width: 160px; justify-content: center;
+                    box-shadow: inset 0 2px 4px rgba(0,0,0,0.2);
+                }
+                .timer-badge.urgent { background: rgba(244, 63, 94, 0.1); border-color: rgba(244, 63, 94, 0.3); color: #f43f5e; animation: pulse 2s infinite; }
+                @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.85; } }
+
+                .header-right { flex: 1; display: flex; justify-content: flex-end; }
+                .submit-btn {
+                    display: flex; align-items: center; gap: 0.75rem;
+                    background: var(--primary); color: white; border: none;
+                    padding: 0.75rem 1.5rem; border-radius: 12px; font-weight: 700;
+                    cursor: pointer; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+                    box-shadow: 0 4px 12px -2px rgba(79, 70, 229, 0.25);
+                }
+                .submit-btn:hover { background: var(--primary-hover); transform: translateY(-1px); box-shadow: 0 6px 16px -2px rgba(79, 70, 229, 0.35); }
+
+                .exam-main-layout { flex: 1; display: flex; overflow: hidden; }
+                
+                .navigation-sidebar {
+                    width: 280px; background: rgba(255, 255, 255, 0.02); border-right: 1px solid var(--border-default);
+                    padding: 2rem; display: flex; flex-direction: column; gap: 1.5rem;
+                    overflow-y: auto; backdrop-filter: var(--glass-blur);
+                }
+                .sidebar-title { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary); font-weight: 700; }
+                .nav-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 0.5rem; }
+                .nav-item {
+                    aspect-ratio: 1; border-radius: 8px; border: 1px solid var(--border-default);
+                    background: rgba(255, 255, 255, 0.03); font-size: 0.875rem; font-weight: 600; color: var(--text-secondary);
+                    cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center;
+                }
+                .nav-item:hover { border-color: var(--primary); color: var(--primary); background: rgba(99, 102, 241, 0.05); }
+                .nav-item.active { background: var(--primary); border-color: var(--primary); color: white; box-shadow: 0 0 15px rgba(99, 102, 241, 0.4); }
+                .nav-item.answered:not(.active) { background: rgba(99, 102, 241, 0.05); color: var(--primary); border-color: rgba(99, 102, 241, 0.3); }
+
+                .question-workspace {
+                    flex: 1; padding: 3rem; overflow-y: auto; display: flex; flex-direction: column;
+                    align-items: center; gap: 3rem; background: var(--bg-main);
+                }
+                .question-navigation {
+                    display: flex; gap: 1rem; width: 100%; max-width: 800px; justify-content: space-between;
+                    padding-bottom: 4rem;
+                }
+                .nav-btn {
+                    display: flex; align-items: center; gap: 0.5rem; padding: 0.75rem 1.5rem;
+                    border-radius: 12px; font-weight: 700; cursor: pointer; transition: all 0.2s;
+                }
+                .nav-btn.primary { background: var(--primary); color: white; border: none; box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3); }
+                .nav-btn.primary:hover { box-shadow: 0 6px 20px rgba(99, 102, 241, 0.5); transform: translateY(-1px); }
+                .nav-btn.secondary { background: rgba(255, 255, 255, 0.05); border: 1px solid var(--border-default); color: var(--text-main); }
+                .nav-btn.secondary:hover { background: rgba(255, 255, 255, 0.1); }
+                .nav-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+            `}</style>
         </div>
     );
 };
