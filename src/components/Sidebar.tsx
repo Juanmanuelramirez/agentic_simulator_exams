@@ -47,7 +47,7 @@ const Sidebar: React.FC<SidebarProps> = ({ user, activeView, onViewChange, onLog
       <div className="sidebar-header">
         <div className="brand">
           <div className="brand-logo">
-            <ShieldCheck size={24} />
+            <ShieldCheck size={22} color="white" />
           </div>
           <span className="brand-name">Agentic LMS</span>
         </div>
@@ -107,7 +107,7 @@ const Sidebar: React.FC<SidebarProps> = ({ user, activeView, onViewChange, onLog
           <button className="nav-item">
             <AlertTriangle size={20} />
             <span>Alertas de Alucinación</span>
-            <span className="notification-dot">2</span>
+            <span className="notification-badge">2</span>
           </button>
         </nav>
       </div>
@@ -129,7 +129,7 @@ const Sidebar: React.FC<SidebarProps> = ({ user, activeView, onViewChange, onLog
 
       <style>{`
         .app-sidebar {
-          width: 280px;
+          width: 250px;
           background: var(--bg-sidebar);
           color: white;
           display: flex;
@@ -139,12 +139,11 @@ const Sidebar: React.FC<SidebarProps> = ({ user, activeView, onViewChange, onLog
           left: 0;
           top: 0;
           z-index: 100;
-          border-right: 1px solid rgba(255, 255, 255, 0.05);
         }
 
         .sidebar-header {
-          padding: 1.5rem;
-          margin-bottom: 2rem;
+          padding: 1.5rem 1.25rem;
+          margin-bottom: 1rem;
         }
 
         .brand {
@@ -154,33 +153,32 @@ const Sidebar: React.FC<SidebarProps> = ({ user, activeView, onViewChange, onLog
         }
 
         .brand-logo {
-          width: 36px;
-          height: 36px;
+          width: 32px;
+          height: 32px;
           background: var(--primary);
           border-radius: 8px;
           display: flex;
           align-items: center;
           justify-content: center;
-          box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
         }
 
         .brand-name {
-          font-size: 1.25rem;
+          font-size: 1.125rem;
           font-weight: 700;
-          letter-spacing: -0.025em;
+          letter-spacing: -0.01em;
         }
 
         .sidebar-section {
-          padding: 0 1rem;
-          margin-bottom: 2rem;
+          padding: 0 0.75rem;
+          margin-bottom: 1.5rem;
         }
 
         .section-title {
           display: block;
           padding: 0 0.5rem;
-          font-size: 0.75rem;
+          font-size: 0.6875rem;
           font-weight: 700;
-          color: #4B5563;
+          color: #4b5563;
           margin-bottom: 0.75rem;
           letter-spacing: 0.05em;
         }
@@ -197,7 +195,7 @@ const Sidebar: React.FC<SidebarProps> = ({ user, activeView, onViewChange, onLog
           gap: 0.75rem;
           padding: 0.75rem 1rem;
           border-radius: 10px;
-          color: #9CA3AF;
+          color: #9ca3af;
           background: none;
           border: none;
           cursor: pointer;
@@ -216,14 +214,15 @@ const Sidebar: React.FC<SidebarProps> = ({ user, activeView, onViewChange, onLog
         .nav-item.active {
           color: white;
           background: var(--primary);
+          box-shadow: 0 4px 12px rgba(79, 70, 229, 0.2);
         }
 
-        .notification-dot {
+        .notification-badge {
           position: absolute;
-          right: 1rem;
-          background: #EF4444;
+          right: 0.75rem;
+          background: #ef4444;
           color: white;
-          font-size: 0.7rem;
+          font-size: 0.65rem;
           font-weight: 700;
           width: 18px;
           height: 18px;
@@ -235,31 +234,27 @@ const Sidebar: React.FC<SidebarProps> = ({ user, activeView, onViewChange, onLog
 
         .sidebar-footer {
           margin-top: auto;
-          padding: 1.5rem;
-          border-top: 1px solid rgba(255, 255, 255, 0.05);
+          padding: 1.25rem;
+          background: rgba(0, 0, 0, 0.1);
         }
 
         .user-profile {
           display: flex;
           align-items: center;
           gap: 0.75rem;
-          background: rgba(255, 255, 255, 0.03);
-          padding: 0.75rem;
-          border-radius: 12px;
-          border: 1px solid rgba(255, 255, 255, 0.05);
         }
 
         .user-avatar {
           width: 36px;
           height: 36px;
-          background: #F3F4FB;
-          color: #1F2937;
+          background: rgba(255, 255, 255, 0.1);
+          color: white;
           border-radius: 8px;
           display: flex;
           align-items: center;
           justify-content: center;
           font-weight: 700;
-          flex-shrink: 0;
+          font-size: 0.875rem;
         }
 
         .user-info {
@@ -270,7 +265,7 @@ const Sidebar: React.FC<SidebarProps> = ({ user, activeView, onViewChange, onLog
         }
 
         .user-name {
-          font-size: 0.875rem;
+          font-size: 0.8125rem;
           font-weight: 600;
           white-space: nowrap;
           overflow: hidden;
@@ -278,8 +273,8 @@ const Sidebar: React.FC<SidebarProps> = ({ user, activeView, onViewChange, onLog
         }
 
         .user-email {
-          font-size: 0.75rem;
-          color: #6B7280;
+          font-size: 0.7rem;
+          color: rgba(255, 255, 255, 0.4);
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
@@ -288,19 +283,19 @@ const Sidebar: React.FC<SidebarProps> = ({ user, activeView, onViewChange, onLog
         .logout-btn-small {
           background: none;
           border: none;
-          color: #9CA3AF;
+          color: #9ca3af;
           cursor: pointer;
           display: flex;
           align-items: center;
           justify-content: center;
-          padding: 0.5rem;
+          padding: 0.4rem;
           border-radius: 6px;
           transition: all 0.2s;
         }
 
         .logout-btn-small:hover {
           background: rgba(239, 68, 68, 0.1);
-          color: #EF4444;
+          color: #ef4444;
         }
 
         .modal-overlay {

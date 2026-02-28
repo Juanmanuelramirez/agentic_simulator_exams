@@ -19,6 +19,7 @@ export interface Question {
     official_link?: string;
     user_selected_ids?: string[];
     is_verified?: boolean;
+    marked_for_review?: boolean;
 }
 
 export interface Exam {

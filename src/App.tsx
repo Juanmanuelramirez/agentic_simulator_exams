@@ -19,7 +19,7 @@ import Sidebar from './components/Sidebar'
 import { dbService } from './services/db'
 
 function App() {
-  const { language, setLanguage } = useLanguage();
+  const { language } = useLanguage();
   const { user, loading, logout } = useAuth();
 
   const [activeExam, setActiveExam] = useState<Exam | null>(null);

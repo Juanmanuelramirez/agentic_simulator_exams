@@ -37,11 +37,6 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
             <header className="dashboard-header mb-2">
                 <div>
                     <h1>Bienvenido, {user.name}</h1>
-                    <p className="text-secondary">Tu progreso de aprendizaje hoy</p>
-                </div>
-                <div className="streak-badge">
-                    <Award size={20} />
-                    <span>{user.streak} días de racha</span>
                 </div>
             </header>
 
@@ -282,10 +277,10 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
                 .stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem; }
                 .stat-card { display: flex; align-items: center; gap: 1.25rem; padding: 1.5rem; background: var(--bg-surface); border: 1px solid var(--border-default); box-shadow: var(--shadow-sm); border-radius: 16px; }
                 .stat-icon-wrap { width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; }
-                .stat-icon-wrap.blue { background: rgba(59, 130, 246, 0.1); color: #3b82f6; }
-                .stat-icon-wrap.green { background: rgba(16, 185, 129, 0.1); color: #10b981; }
-                .stat-icon-wrap.purple { background: rgba(139, 92, 246, 0.1); color: #a855f7; }
-                .stat-icon-wrap.orange { background: rgba(245, 158, 11, 0.1); color: #f59e0b; }
+                .stat-icon-wrap.blue { background: rgba(59, 130, 246, 0.08); color: #3b82f6; }
+                .stat-icon-wrap.green { background: rgba(16, 185, 129, 0.08); color: #10b981; }
+                .stat-icon-wrap.purple { background: rgba(139, 92, 246, 0.08); color: #6366F1; }
+                .stat-icon-wrap.orange { background: rgba(245, 158, 11, 0.08); color: #f59e0b; }
                 
                 .stat-label { font-size: 0.8125rem; color: var(--text-secondary); font-weight: 600; text-transform: uppercase; letter-spacing: 0.025em; }
                 .stat-value { font-size: 1.75rem; font-weight: 800; color: var(--text-main); line-height: 1; margin-top: 0.25rem; }
@@ -295,8 +290,8 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
                 .section-title { font-size: 1.125rem; font-weight: 700; margin: 0; }
                 
                 .pro-table { width: 100%; border-collapse: collapse; text-align: left; }
-                .pro-table th { padding: 1rem 1.5rem; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary); background: #F9FAFB; border-bottom: 1px solid var(--border-default); }
-                .pro-table td { padding: 1rem 1.5rem; border-bottom: 1px solid var(--border-default); }
+                .pro-table th { padding: 1rem 1.5rem; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary); background: #f9fafb; border-bottom: 1px solid #f1f5f9; }
+                .pro-table td { padding: 1rem 1.5rem; border-bottom: 1px solid #f1f5f9; }
                 
                 .exam-cell { display: flex; align-items: center; gap: 1rem; }
                 .exam-icon-box { width: 36px; height: 36px; background: #F3F4FB; color: var(--primary); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.65rem; text-transform: lowercase; border: 1px solid var(--border-default); }

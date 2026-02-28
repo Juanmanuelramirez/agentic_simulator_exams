@@ -1,7 +1,18 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import type { Exam, Question } from '../types';
 import QuestionCard from './QuestionCard';
-import { ChevronLeft, ChevronRight, Clock, Send } from 'lucide-react';
+import {
+    ChevronLeft,
+    ChevronRight,
+    Clock,
+    Send,
+    X,
+    LayoutDashboard,
+    BookOpen,
+    History,
+    RotateCcw,
+    ShieldCheck
+} from 'lucide-react';
 
 interface RealExamViewProps {
     exam: Exam;
@@ -36,6 +47,12 @@ const RealExamView: React.FC<RealExamViewProps> = ({ exam, initialQuestions, onE
         setQuestions(updated);
     };
 
+    const handleToggleReview = () => {
+        const updated = [...questions];
+        updated[currentIdx] = { ...updated[currentIdx], marked_for_review: !updated[currentIdx].marked_for_review };
+        setQuestions(updated);
+    };
+
     const formatTime = (seconds: number) => {
         const h = Math.floor(seconds / 3600);
         const m = Math.floor((seconds % 3600) / 60);
@@ -46,153 +63,241 @@ const RealExamView: React.FC<RealExamViewProps> = ({ exam, initialQuestions, onE
     const currentQuestion = questions[currentIdx];
 
     return (
-        <div className="real-exam-view animate-fade-in">
-            <nav className="exam-header">
-                <div className="header-left">
-                    <button onClick={onExit} className="back-link"><ChevronLeft size={20} /> Abortar</button>
-                    <div className="exam-meta-info">
-                        <span className="exam-title">{exam.name}</span>
-                        <span className="question-index">Pregunta {currentIdx + 1} de {questions.length}</span>
-                    </div>
+        <div className="app-container animate-fade-in" style={{ zIndex: 3000, position: 'fixed', inset: 0 }}>
+            <aside className="mini-sidebar">
+                <div className="brand-logo mb-3" style={{ background: 'var(--primary)', color: 'white', padding: '8px', borderRadius: '10px' }}>
+                    <ShieldCheck size={24} />
                 </div>
+                <button className="mini-nav-item"><LayoutDashboard size={20} /></button>
+                <button className="mini-nav-item active"><BookOpen size={20} /></button>
+                <button className="mini-nav-item"><History size={20} /></button>
+                <button className="mini-nav-item"><RotateCcw size={20} /></button>
 
-                <div className="header-center">
-                    <div className={`timer-badge ${timeLeft < 300 ? 'urgent' : ''}`}>
-                        <Clock size={18} />
-                        <span>{formatTime(timeLeft)}</span>
-                    </div>
+                <div style={{ marginTop: 'auto', marginBottom: '1rem' }}>
+                    <div className="user-avatar" style={{ background: '#f1f5f9', color: '#64748b' }}>JD</div>
                 </div>
+            </aside>
 
-                <div className="header-right">
-                    <button onClick={handleFinish} className="submit-btn"><Send size={18} /> Entregar Examen</button>
-                </div>
-            </nav>
-
-            <div className="exam-main-layout">
-                <aside className="navigation-sidebar">
-                    <h3 className="sidebar-title">Navegación</h3>
-                    <div className="nav-grid">
-                        {questions.map((q, idx) => (
-                            <button
-                                key={idx}
-                                onClick={() => setCurrentIdx(idx)}
-                                className={`nav-item ${currentIdx === idx ? 'active' : ''} ${q.user_selected_ids?.length ? 'answered' : ''}`}
-                            >
-                                {idx + 1}
-                            </button>
-                        ))}
+            <main className="main-content">
+                <header className="view-header">
+                    <div className="view-header-left">
+                        <div className="breadcrumbs">
+                            <span className="text-sm font-medium">{exam.name}</span>
+                            <ChevronLeft size={14} style={{ transform: 'rotate(180deg)' }} />
+                            <span className="current text-indigo-600">Examen Real</span>
+                        </div>
                     </div>
-                </aside>
 
-                <main className="question-workspace">
-                    {currentQuestion && (
-                        <QuestionCard
-                            question={currentQuestion}
-                            onAnswer={handleAnswer}
-                            isVerified={false}
-                            userSelectedIds={currentQuestion.user_selected_ids}
-                        />
-                    )}
+                    <div className="header-center">
+                        <div className={`timer-display ${timeLeft < 300 ? 'text-error' : 'text-slate-700'}`}>
+                            <Clock size={20} />
+                            <span className="font-bold text-xl">{formatTime(timeLeft)}</span>
+                        </div>
+                    </div>
 
-                    <div className="question-navigation">
-                        <button
-                            disabled={currentIdx === 0}
-                            onClick={() => setCurrentIdx(currentIdx - 1)}
-                            className="nav-btn secondary"
-                        >
-                            <ChevronLeft size={20} /> Anterior
+                    <div className="view-header-right flex items-center gap-4">
+                        <button onClick={handleFinish} className="submit-btn-pro">
+                            <Send size={18} />
+                            <span>Entregar Examen</span>
                         </button>
+                        <button onClick={onExit} className="icon-btn-circle">
+                            <X size={20} />
+                        </button>
+                    </div>
+                </header>
+
+                <div className="exam-body-layout">
+                    <aside className="nav-panel">
+                        <div className="panel-header">
+                            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Navegación</h3>
+                        </div>
+                        <div className="q-grid scrollbar-hide">
+                            {questions.map((q, idx) => (
+                                <button
+                                    key={idx}
+                                    onClick={() => setCurrentIdx(idx)}
+                                    className={`q-nav-item ${currentIdx === idx ? 'active' : ''} ${q.user_selected_ids?.length ? 'answered' : ''}`}
+                                >
+                                    {idx + 1}
+                                    {q.marked_for_review && <div className="q-flag-dot" />}
+                                </button>
+                            ))}
+                        </div>
+                    </aside>
+
+                    <div className="question-content-area">
+                        {currentQuestion && (
+                            <QuestionCard
+                                question={currentQuestion}
+                                onAnswer={handleAnswer}
+                                isVerified={false}
+                                userSelectedIds={currentQuestion.user_selected_ids}
+                                isMarkedForReview={currentQuestion.marked_for_review}
+                                onToggleReview={handleToggleReview}
+                            />
+                        )}
+                    </div>
+                </div>
+
+                <footer className="view-footer">
+                    <button
+                        onClick={() => setCurrentIdx(Math.max(0, currentIdx - 1))}
+                        disabled={currentIdx === 0}
+                        className="btn-ghost"
+                    >
+                        <ChevronLeft size={20} />
+                        <span>Anterior</span>
+                    </button>
+
+                    <div className="footer-actions">
                         <button
+                            onClick={() => setCurrentIdx(Math.min(questions.length - 1, currentIdx + 1))}
                             disabled={currentIdx === questions.length - 1}
-                            onClick={() => setCurrentIdx(currentIdx + 1)}
-                            className="nav-btn primary"
+                            className="pro-btn-main active"
                         >
-                            Siguiente <ChevronRight size={20} />
+                            <span>Siguiente Pregunta</span>
+                            <ChevronRight size={20} />
                         </button>
                     </div>
-                </main>
-            </div>
+                </footer>
+            </main>
 
             <style>{`
-                .real-exam-view {
-                    position: fixed; inset: 0; background: var(--bg-main); z-index: 3000;
-                    display: flex; flex-direction: column;
+                .exam-body-layout {
+                    display: flex;
+                    flex: 1;
+                    min-height: 0;
                 }
-                .exam-header {
-                    display: flex; justify-content: space-between; align-items: center;
-                    padding: 1rem 2.5rem; background: var(--bg-card); backdrop-filter: var(--glass-blur); border-bottom: 1px solid var(--border-default);
-                    height: 80px; box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
+                
+                .nav-panel {
+                    width: 240px;
+                    border-right: 1px solid var(--border-default);
+                    background: #f8fafc;
+                    display: flex;
+                    flex-direction: column;
                 }
-                .header-left { display: flex; align-items: center; gap: 2.5rem; flex: 1; }
-                .back-link { 
-                    display: flex; align-items: center; gap: 0.5rem; 
-                    background: rgba(255, 255, 255, 0.05); border: 1px solid var(--border-default); 
-                    color: var(--text-secondary); padding: 0.5rem 1rem; border-radius: 12px;
-                    font-weight: 600; cursor: pointer; font-size: 0.875rem;
+                
+                .panel-header { padding: 1.5rem; border-bottom: 1px solid var(--border-default); }
+                
+                .q-grid {
+                    padding: 1.25rem;
+                    display: grid;
+                    grid-template-columns: repeat(4, 1fr);
+                    gap: 0.5rem;
+                    overflow-y: auto;
+                }
+                
+                .q-nav-item {
+                    aspect-ratio: 1;
+                    border-radius: 8px;
+                    border: 1px solid #e2e8f0;
+                    background: white;
+                    font-size: 0.8125rem;
+                    font-weight: 700;
+                    color: #64748b;
+                    cursor: pointer;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    position: relative;
+                    transition: all 0.2s;
+                    padding: 0;
+                }
+                
+                .q-nav-item:hover { border-color: var(--primary); color: var(--primary); }
+                .q-nav-item.active { background: var(--primary); border-color: var(--primary); color: white; }
+                .q-nav-item.answered:not(.active) { background: #eff6ff; color: var(--primary); border-color: #bfdbfe; }
+                
+                .q-flag-dot {
+                    position: absolute;
+                    top: 4px;
+                    right: 4px;
+                    width: 6px;
+                    height: 6px;
+                    background: #fb923c;
+                    border-radius: 50%;
+                }
+                
+                .question-content-area {
+                    flex: 1;
+                    overflow-y: auto;
+                    padding: 2rem;
+                }
+                
+                .timer-display {
+                    display: flex;
+                    align-items: center;
+                    gap: 0.75rem;
+                    padding: 0.5rem 1rem;
+                    background: #f1f5f9;
+                    border-radius: 12px;
+                }
+                
+                .submit-btn-pro {
+                    display: flex;
+                    align-items: center;
+                    gap: 0.5rem;
+                    padding: 0.625rem 1.25rem;
+                    background: var(--primary);
+                    color: white;
+                    border: none;
+                    border-radius: 10px;
+                    font-weight: 700;
+                    cursor: pointer;
                     transition: all 0.2s;
                 }
-                .back-link:hover { background: rgba(244, 63, 94, 0.1); color: var(--error); border-color: rgba(244, 63, 94, 0.2); }
-                .exam-meta-info { display: flex; flex-direction: column; }
-                .exam-title { font-weight: 800; color: var(--text-main); font-size: 1.125rem; letter-spacing: -0.01em; }
-                .question-index { font-size: 0.875rem; color: var(--text-secondary); font-weight: 500; }
-
-                .header-center { flex: 1; display: flex; justify-content: center; }
-                .timer-badge {
-                    display: flex; align-items: center; gap: 0.75rem;
-                    padding: 0.625rem 1.5rem; border-radius: 99px;
-                    background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-default);
-                    font-family: 'Inter', sans-serif; font-weight: 750; font-size: 1.25rem;
-                    color: var(--text-main); min-width: 160px; justify-content: center;
-                    box-shadow: inset 0 2px 4px rgba(0,0,0,0.2);
-                }
-                .timer-badge.urgent { background: rgba(244, 63, 94, 0.1); border-color: rgba(244, 63, 94, 0.3); color: #f43f5e; animation: pulse 2s infinite; }
-                @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.85; } }
-
-                .header-right { flex: 1; display: flex; justify-content: flex-end; }
-                .submit-btn {
-                    display: flex; align-items: center; gap: 0.75rem;
-                    background: var(--primary); color: white; border: none;
-                    padding: 0.75rem 1.5rem; border-radius: 12px; font-weight: 700;
-                    cursor: pointer; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-                    box-shadow: 0 4px 12px -2px rgba(79, 70, 229, 0.25);
-                }
-                .submit-btn:hover { background: var(--primary-hover); transform: translateY(-1px); box-shadow: 0 6px 16px -2px rgba(79, 70, 229, 0.35); }
-
-                .exam-main-layout { flex: 1; display: flex; overflow: hidden; }
+                .submit-btn-pro:hover { background: var(--primary-hover); transform: translateY(-1px); }
                 
-                .navigation-sidebar {
-                    width: 280px; background: rgba(255, 255, 255, 0.02); border-right: 1px solid var(--border-default);
-                    padding: 2rem; display: flex; flex-direction: column; gap: 1.5rem;
-                    overflow-y: auto; backdrop-filter: var(--glass-blur);
+                .scrollbar-hide::-webkit-scrollbar { display: none; }
+                .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+                
+                .text-error { color: #ef4444; }
+                .btn-ghost {
+                    display: flex;
+                    align-items: center;
+                    gap: 0.5rem;
+                    color: #64748b;
+                    font-weight: 600;
+                    background: none;
+                    border: none;
+                    padding: 0.5rem 1rem;
+                    border-radius: 8px;
+                    cursor: pointer;
                 }
-                .sidebar-title { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary); font-weight: 700; }
-                .nav-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 0.5rem; }
-                .nav-item {
-                    aspect-ratio: 1; border-radius: 8px; border: 1px solid var(--border-default);
-                    background: rgba(255, 255, 255, 0.03); font-size: 0.875rem; font-weight: 600; color: var(--text-secondary);
-                    cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center;
+                .btn-ghost:hover:not(:disabled) { background: #f8fafc; color: var(--text-main); }
+                .btn-ghost:disabled { opacity: 0.4; cursor: not-allowed; }
+                
+                .pro-btn-main {
+                    display: flex;
+                    align-items: center;
+                    gap: 0.75rem;
+                    padding: 0.75rem 1.75rem;
+                    border-radius: 12px;
+                    font-weight: 700;
+                    background: #64748b;
+                    color: white;
+                    border: none;
+                    transition: all 0.2s;
+                    cursor: pointer;
                 }
-                .nav-item:hover { border-color: var(--primary); color: var(--primary); background: rgba(99, 102, 241, 0.05); }
-                .nav-item.active { background: var(--primary); border-color: var(--primary); color: white; box-shadow: 0 0 15px rgba(99, 102, 241, 0.4); }
-                .nav-item.answered:not(.active) { background: rgba(99, 102, 241, 0.05); color: var(--primary); border-color: rgba(99, 102, 241, 0.3); }
-
-                .question-workspace {
-                    flex: 1; padding: 3rem; overflow-y: auto; display: flex; flex-direction: column;
-                    align-items: center; gap: 3rem; background: var(--bg-main);
+                .pro-btn-main:hover {
+                    background: #475569;
+                    transform: translateY(-1px);
                 }
-                .question-navigation {
-                    display: flex; gap: 1rem; width: 100%; max-width: 800px; justify-content: space-between;
-                    padding-bottom: 4rem;
+                
+                .icon-btn-circle {
+                    width: 40px;
+                    height: 40px;
+                    border-radius: 50%;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    color: #94a3b8;
+                    background: none;
+                    border: none;
+                    cursor: pointer;
                 }
-                .nav-btn {
-                    display: flex; align-items: center; gap: 0.5rem; padding: 0.75rem 1.5rem;
-                    border-radius: 12px; font-weight: 700; cursor: pointer; transition: all 0.2s;
-                }
-                .nav-btn.primary { background: var(--primary); color: white; border: none; box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3); }
-                .nav-btn.primary:hover { box-shadow: 0 6px 20px rgba(99, 102, 241, 0.5); transform: translateY(-1px); }
-                .nav-btn.secondary { background: rgba(255, 255, 255, 0.05); border: 1px solid var(--border-default); color: var(--text-main); }
-                .nav-btn.secondary:hover { background: rgba(255, 255, 255, 0.1); }
-                .nav-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+                .icon-btn-circle:hover { background: #f1f5f9; color: var(--text-main); }
             `}</style>
         </div>
     );

@@ -135,7 +135,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                     <p className="text-secondary text-sm">Gestiona los blueprints ingeridos por el Agente Librarian.</p>
                                 </div>
                                 <button className="pro-primary-btn" onClick={() => setShowModal(true)}>
-                                    <PlusCircle size={20} />
+                                    <span style={{ fontSize: '20px', marginRight: '8px' }}>+</span>
                                     <span>Ingestar Nueva Guía (URL/PDF)</span>
                                 </button>
                             </div>
@@ -495,15 +495,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 }
 
                 .admin-header {
-                    margin-bottom: 3rem;
+                    margin-bottom: 2rem;
                 }
 
                 .admin-header h1 {
-                    font-size: 2rem;
-                    font-weight: 800;
-                    letter-spacing: -0.025em;
-                    color: var(--text-main);
-                    margin-bottom: 0.5rem;
+                    font-size: 1.5rem;
+                    font-weight: 700;
+                    color: #1e1e2d;
+                    margin-bottom: 0.25rem;
                 }
 
                 .stats-row {
@@ -531,10 +530,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     align-items: center;
                     justify-content: center;
                 }
-                .stat-icon-wrap.blue { background: rgba(59, 130, 246, 0.1); color: #3b82f6; }
-                .stat-icon-wrap.green { background: rgba(16, 185, 129, 0.1); color: #10b981; }
-                .stat-icon-wrap.purple { background: rgba(139, 92, 246, 0.1); color: #a855f7; }
-                .stat-icon-wrap.orange { background: rgba(245, 158, 11, 0.1); color: #f59e0b; }
+                .stat-icon-wrap.blue { background: rgba(59, 130, 246, 0.08); color: #3b82f6; }
+                .stat-icon-wrap.green { background: rgba(16, 185, 129, 0.08); color: #10b981; }
+                .stat-icon-wrap.purple { background: rgba(139, 92, 246, 0.08); color: #6366F1; }
+                .stat-icon-wrap.orange { background: rgba(245, 158, 11, 0.08); color: #f59e0b; }
 
                 .stat-label {
                     display: block;
@@ -792,6 +791,46 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     background: white;
                     font-weight: 600;
                     cursor: pointer;
+                }
+
+                .pro-primary-btn { 
+                    background: var(--primary); 
+                    color: white; 
+                    border: none; 
+                    padding: 0.75rem 1.25rem; 
+                    border-radius: 8px; 
+                    font-weight: 600; 
+                    cursor: pointer; 
+                    transition: all 0.2s;
+                    display: flex;
+                    align-items: center;
+                    gap: 0.5rem;
+                }
+                .pro-primary-btn:hover { 
+                    background: var(--primary-hover); 
+                    transform: translateY(-1px); 
+                    box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3); 
+                }
+
+                .pro-table {
+                    width: 100%;
+                    border-collapse: collapse;
+                }
+                .pro-table th {
+                    text-align: left;
+                    padding: 1rem;
+                    background: #f9fafb;
+                    color: #64748b;
+                    font-size: 0.75rem;
+                    font-weight: 700;
+                    text-transform: uppercase;
+                    letter-spacing: 0.05em;
+                    border-bottom: 1px solid #f1f5f9;
+                }
+                .pro-table td {
+                    padding: 1rem;
+                    border-bottom: 1px solid #f1f5f9;
+                    vertical-align: middle;
                 }
 
                 .animate-up {

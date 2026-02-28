@@ -1,19 +1,23 @@
 import React from 'react';
 import type { Question } from '../types';
-import { CheckCircle, XCircle, ExternalLink, Info } from 'lucide-react';
+import { CheckCircle, XCircle, Info } from 'lucide-react';
 
 interface QuestionCardProps {
   question: Question;
   onAnswer: (selectedIds: string[]) => void;
   isVerified?: boolean;
   userSelectedIds?: string[];
+  isMarkedForReview?: boolean;
+  onToggleReview?: () => void;
 }
 
 const QuestionCard: React.FC<QuestionCardProps> = ({
   question,
   onAnswer,
   isVerified = false,
-  userSelectedIds = []
+  userSelectedIds = [],
+  isMarkedForReview = false,
+  onToggleReview
 }) => {
   const [localSelected, setLocalSelected] = React.useState<string[]>(userSelectedIds);
 
@@ -42,21 +46,44 @@ const QuestionCard: React.FC<QuestionCardProps> = ({
 
   return (
     <div className="question-card animate-fade-in">
-      <div className="question-meta mb-2">
-        <span className="metadata-text">{question.domain}</span>
-        <span className="metadata-text">•</span>
-        <span className="metadata-text">
-          {question.type === 'single_select'
-            ? 'Selección Única'
-            : `Selección Múltiple ${!isVerified ? '(selecciona ' + question.correct_ids.length + ')' : ''}`}
-        </span>
+      {question.domain && (
+        <div className="mb-2">
+          <div className="badge-indigo">
+            <Info size={14} />
+            <span>{question.domain}</span>
+          </div>
+        </div>
+      )}
+
+      <div className="question-header flex-between mb-2">
+        <h2 className="question-text">{question.question_text}</h2>
+        {onToggleReview && (
+          <button
+            onClick={onToggleReview}
+            className={`bookmark-btn ${isMarkedForReview ? 'active' : ''}`}
+            title="Marcar para revisión posterior"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="24" height="24"
+              viewBox="0 0 24 24"
+              fill={isMarkedForReview ? "#fb923c" : "none"}
+              stroke={isMarkedForReview ? "#fb923c" : "currentColor"}
+              strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+            >
+              <path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z" />
+            </svg>
+          </button>
+        )}
       </div>
 
-      <h2 className="question-text mb-3">{question.question_text}</h2>
+      <div className="question-instruction mb-2">
+        {question.type === 'single_select' ? 'SELECCIONA 1 OPCIÓN' : `SELECCIONA ${question.correct_ids.length} OPCIONES`}
+      </div>
 
-      <div className="options-container grid-2x2">
+      <div className="options-container v-stack">
         {question.options.map((option, index) => {
-          const letter = String.fromCharCode(65 + index); // A, B, C, D...
+          const letter = String.fromCharCode(65 + index);
           const selected = isSelected(option.id);
           const correct = isCorrect(option.id);
 
@@ -72,15 +99,9 @@ const QuestionCard: React.FC<QuestionCardProps> = ({
               key={option.id}
               onClick={() => toggleOption(option.id)}
               disabled={isVerified}
-              className={`option-btn ${statusClass}`}
+              className={`option-row ${statusClass}`}
             >
-              <div className="option-marker">
-                {question.type === 'multi_select' ? (
-                  <div className={`checkbox ${selected ? 'checked' : ''}`} />
-                ) : (
-                  <div className="letter-circle">{letter}</div>
-                )}
-              </div>
+              <div className="option-letter">{letter}</div>
               <span className="option-label">{option.text}</span>
               {isVerified && correct && <CheckCircle size={20} className="status-icon success" />}
               {isVerified && selected && !correct && <XCircle size={20} className="status-icon error" />}
@@ -90,87 +111,74 @@ const QuestionCard: React.FC<QuestionCardProps> = ({
       </div>
 
       {isVerified && (
-        <div className="official-explanation card bg-dark mt-3 animate-fade-in">
-          <div className="explanation-header mb-1">
+        <div className="official-explanation mt-3 animate-fade-in">
+          <div className="explanation-header mb-1 flex items-center gap-2">
             <Info size={20} className="text-primary" />
-            <h3>Explicación Oficial</h3>
+            <h3 className="m-0">Explicación Oficial</h3>
           </div>
           <p className="explanation-summary mb-2">{question.explanation}</p>
-
-          {question.official_link && (
-            <a href={question.official_link} target="_blank" rel="noopener noreferrer" className="official-link">
-              Fuentes: [ AWS Documentation ] <ExternalLink size={14} />
-            </a>
-          )}
         </div>
       )}
 
       <style>{`
-                .question-card { width: 100%; max-width: 800px; margin: 0 auto; }
-                .question-meta { display: flex; gap: 0.75rem; align-items: center; }
-                .metadata-text { font-size: 0.875rem; color: var(--text-secondary); font-weight: 500; }
-                .question-text { font-size: 1.25rem; line-height: 1.5; color: var(--text-main); }
+                .question-card { width: 100%; max-width: 900px; margin: 0 auto; padding: 2rem 0; }
+                .question-text { font-size: 1.5rem; font-weight: 700; line-height: 1.4; color: #1e293b; margin: 0; flex: 1; }
+                .question-instruction { font-size: 0.75rem; font-weight: 700; color: #94a3b8; letter-spacing: 0.05em; margin-top: 2rem; }
                 
-                .options-container { margin-top: 1.5rem; }
-                .option-btn {
-                    width: 100%; display: flex; align-items: center; gap: 1rem;
-                    padding: 1.25rem; border-radius: var(--radius-xl);
-                    border: 1px solid var(--border-default); background: var(--bg-surface);
-                    backdrop-filter: var(--glass-blur);
+                .options-container.v-stack { display: flex; flex-direction: column; gap: 0.75rem; margin-top: 1rem; }
+                
+                .option-row {
+                    width: 100%; display: flex; align-items: center; gap: 1.25rem;
+                    padding: 1rem 1.5rem; border-radius: 12px;
+                    border: 1px solid #e2e8f0; background: white;
                     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); text-align: left;
-                    min-height: 72px; color: var(--text-main);
+                    min-height: 64px; cursor: pointer;
+                    color: inherit;
                 }
-                .option-btn:hover:not(:disabled) { border-color: var(--primary); background: rgba(255, 255, 255, 0.05); transform: translateY(-2px); box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37); }
-                .option-btn.selected { border-color: var(--primary); background: rgba(99, 102, 241, 0.1); box-shadow: 0 0 0 1px var(--primary); }
                 
-                .option-marker { flex-shrink: 0; padding-top: 2px; }
-                .letter-circle {
-                    width: 28px; height: 28px; border-radius: 50%;
-                    border: 1px solid var(--border-default);
+                .option-row:hover:not(:disabled) { border-color: var(--primary); background: #f8fafc; }
+                .option-row.selected { border-color: var(--primary); border-width: 2px; padding: calc(1rem - 1px) calc(1.5rem - 1px); }
+                
+                .option-letter {
+                    width: 32px; height: 32px; border-radius: 50%;
+                    border: 1px solid #e2e8f0;
                     display: flex; align-items: center; justify-content: center;
-                    font-weight: 700; font-size: 0.8125rem; color: var(--text-secondary);
-                    background: var(--bg-main);
+                    font-weight: 700; font-size: 0.8125rem; color: #64748b;
+                    background: white; flex-shrink: 0;
                 }
-                .option-btn.selected .letter-circle { background: var(--primary); color: white; border-color: var(--primary); }
                 
-                .checkbox {
-                    width: 24px; height: 24px; border-radius: 6px;
-                    border: 2px solid var(--border-default); background: rgba(255, 255, 255, 0.05);
-                }
-                .checkbox.checked { background: var(--primary); border-color: var(--primary); position: relative; }
-                .checkbox.checked::after {
-                    content: ''; position: absolute; left: 7px; top: 3px;
-                    width: 6px; height: 11px; border: solid white;
-                    border-width: 0 2px 2px 0; transform: rotate(45deg);
-                }
+                .option-row.selected .option-letter { border-color: var(--primary); color: var(--primary); background: #eff6ff; }
+                .option-label { flex: 1; font-size: 1rem; color: #334155; font-weight: 500; }
+                
+                /* Verification */
+                .option-row.verified-correct { border-color: var(--success); background: #f0fdf4; border-width: 2px; }
+                .option-row.verified-incorrect { border-color: var(--error); background: #fef2f2; border-width: 2px; }
+                .option-row.verified-correct .option-letter { border-color: var(--success); color: var(--success); }
+                .option-row.verified-incorrect .option-letter { border-color: var(--error); color: var(--error); }
 
-                .option-label { flex: 1; font-size: 1rem; color: var(--text-main); font-weight: 500; line-height: 1.4; }
-                
-                /* Verification Styles */
-                .option-btn.verified-correct { border-color: var(--success); background: rgba(16, 185, 129, 0.1); }
-                .option-btn.verified-incorrect { border-color: var(--error); background: rgba(244, 63, 94, 0.1); }
-                .status-icon.success { color: var(--success); }
-                .status-icon.error { color: var(--error); }
-
-                /* Explanation Card */
-                .official-explanation.card.bg-dark {
-                    background: rgba(255, 255, 255, 0.05); border: 1px solid var(--primary); padding: 2rem;
-                    backdrop-filter: var(--glass-blur);
+                /* Explanation */
+                .official-explanation {
+                    background: #f8fafc; border: 1px dashed var(--primary); border-radius: 16px; padding: 2rem;
                 }
-                .official-explanation h3 { color: white; margin: 0; font-size: 1.125rem; }
-                .explanation-summary { line-height: 1.6; color: #cbd5e1; font-size: 0.9375rem; }
-                .official-link {
-                    display: inline-flex; align-items: center; gap: 0.5rem;
-                    color: #94a3b8; font-size: 0.875rem; text-decoration: none;
-                    font-weight: 600;
-                }
-                .official-link:hover { color: white; }
+                .official-explanation h3 { color: #1e293b; font-size: 1.125rem; font-weight: 700; }
+                .explanation-summary { line-height: 1.6; color: #475569; font-size: 0.9375rem; }
                 
+                .bookmark-btn {
+                    background: none; border: none; cursor: pointer; color: #94a3b8;
+                    padding: 0.5rem; border-radius: 50%; transition: all 0.2s;
+                    display: flex; align-items: center; justify-content: center;
+                    flex-shrink: 0;
+                }
+                .bookmark-btn:hover { background: #f1f5f9; color: var(--secondary); }
+                .bookmark-btn.active { color: var(--secondary); }
+                
+                .flex-between { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; }
                 .mb-1 { margin-bottom: 0.5rem; }
                 .mb-2 { margin-bottom: 1rem; }
-                .mb-3 { margin-bottom: 1.5rem; }
                 .mt-3 { margin-top: 1.5rem; }
-                .text-primary { color: var(--primary); }
+                .items-center { align-items: center; }
+                .gap-2 { gap: 0.5rem; }
+                .m-0 { margin: 0; }
             `}</style>
     </div>
   );
