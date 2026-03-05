@@ -13,3 +13,12 @@ dist-ssr/
 .env.local
 .env.production
 .env.*.local
+
+# kiro
+.kiro
+
+# tasks
+tasks.md
+task.md
+.config.kiro
+desktop.md
