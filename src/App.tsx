@@ -138,7 +138,7 @@ function App() {
     }
   };
 
-  const [selectedQuestionCount, setSelectedQuestionCount] = useState<number>(10);
+  const [selectedQuestionCount, setSelectedQuestionCount] = useState<number>(75);
 
   const handleStartExamData = async (exam: Exam, difficulty: Difficulty, mode: 'simulator' | 'real', count?: number) => {
     setGeneratingQuestions(true);
@@ -182,6 +182,8 @@ function App() {
       exam_id: activeExam?.id || 'unknown',
       mode: examMode || 'real',
       difficulty: activeDifficulty,
+      exam_length_percentage: 100, // Default to 100% for now
+      total_questions_requested: finishedQuestions.length,
       start_time: new Date().toISOString(),
       end_time: new Date().toISOString(),
       questions: finishedQuestions,

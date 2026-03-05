@@ -30,6 +30,31 @@ export interface Exam {
     domains: { name: string; weight: number }[];
     duration_minutes: number;
     total_questions_official: number;
+    
+    // Admin management fields
+    official_guide_url?: string;
+    is_active: boolean;
+    created_by: string; // admin user id
+    created_at: string;
+    updated_at: string;
+    usage_stats?: {
+        total_attempts: number;
+        average_score: number;
+        last_attempt: string;
+    };
+}
+
+export interface ExamDiscoveryResult {
+    exam: Exam;
+    confidence: 'high' | 'medium' | 'low';
+    validation: {
+        domains_validated: boolean;
+        weights_sum_to_100: boolean;
+        official_source_found: boolean;
+        isValid: boolean;
+        warnings: string[];
+    };
+    source: 'official_guide' | 'general_knowledge' | 'fallback';
 }
 
 export interface ExamAttempt {
@@ -37,6 +62,12 @@ export interface ExamAttempt {
     exam_id: string;
     mode: 'simulator' | 'real';
     difficulty: Difficulty;
+    
+    // Exam length configuration
+    exam_length_percentage: 50 | 75 | 100;
+    total_questions_requested: number;
+    generation_job_id?: string;
+    
     start_time: string;
     end_time?: string;
     questions: Question[];
@@ -82,3 +113,87 @@ export interface StudyGuide {
     created_at: string;
 }
 
+
+// Generation Configuration and Progress Tracking
+export interface GenerationConfig {
+    difficulty: Difficulty;
+    language: string;
+    totalQuestions: number;
+    onProgress?: (progress: GenerationProgress) => void;
+    retryAttempts?: number;
+    delayBetweenRequests?: number;
+}
+
+export interface GenerationProgress {
+    current: number;
+    total: number;
+    currentDomain: string;
+    successCount: number;
+    failureCount: number;
+    estimatedTimeRemaining: number; // seconds
+}
+
+export interface GenerationResult {
+    questions: Question[];
+    stats: GenerationStats;
+    errors: GenerationError[];
+}
+
+export interface GenerationStats {
+    totalGenerated: number;
+    totalFailed: number;
+    domainDistribution: Map<string, number>;
+    totalDuration: number; // milliseconds
+    averageTimePerQuestion: number; // milliseconds
+}
+
+export interface GenerationError {
+    questionIndex: number;
+    domain: string;
+    error: Error;
+    timestamp: Date;
+}
+
+export interface DomainQuestionAllocation {
+    domain: { name: string; weight: number };
+    questionCount: number;
+    generated: number;
+}
+
+// Block Generation for Progressive Loading
+export interface BlockGenerationConfig extends GenerationConfig {
+    blockSize: number; // Default: 10
+    initialBlockOnly: boolean; // If true, only generate first block
+    user_id?: string; // Optional user ID for tracking generation jobs
+}
+
+export interface BlockGenerationResult {
+    attemptId: string;
+    firstBlock: Question[];
+    totalRequested: number;
+    generationStatus: 'initial_complete' | 'in_progress' | 'completed';
+    backgroundJobId?: string;
+}
+
+// Background Generation Job Tracking
+export interface GenerationJob {
+    id: string; // job-{timestamp}
+    exam_id: string;
+    user_id: string;
+    attempt_id: string;
+    status: 'pending' | 'in_progress' | 'completed' | 'failed';
+    config: GenerationConfig;
+    progress?: {
+        current: number;
+        total: number;
+        currentDomain: string;
+        eta: number;
+    };
+    result?: {
+        totalGenerated: number;
+        totalFailed: number;
+    };
+    error?: string;
+    created_at: string;
+    updated_at: string;
+}

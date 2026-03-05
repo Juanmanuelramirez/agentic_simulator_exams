@@ -5,12 +5,13 @@ import {
     QueryCommand,
     DeleteCommand
 } from "@aws-sdk/lib-dynamodb";
-import type { Exam, ExamAttempt, Question } from "../types";
+import type { Exam, ExamAttempt, Question, GenerationJob } from "../types";
 
 const TABLES = {
     EXAMS: "ExamSimulator-Simulators",
     QUESTIONS: "ExamSimulator-Questions",
-    ATTEMPTS: "ExamSimulator-Attempts"
+    ATTEMPTS: "ExamSimulator-Attempts",
+    GENERATION_JOBS: "ExamSimulator-GenerationJobs"
 };
 
 export const dbService = {
@@ -81,5 +82,55 @@ export const dbService = {
             Item: attempt
         });
         await docClient.send(command);
+    },
+
+    // --- GENERATION JOBS ---
+    async saveGenerationJob(job: GenerationJob): Promise<void> {
+        const command = new PutCommand({
+            TableName: TABLES.GENERATION_JOBS,
+            Item: job
+        });
+        await docClient.send(command);
+    },
+
+    async updateGenerationJob(
+        jobId: string,
+        updates: Partial<Omit<GenerationJob, 'id' | 'created_at'>>
+    ): Promise<void> {
+        // Build update expression dynamically
+        const updateExpressions: string[] = [];
+        const expressionAttributeNames: Record<string, string> = {};
+        const expressionAttributeValues: Record<string, any> = {};
+
+        // Always update updated_at
+        updates.updated_at = new Date().toISOString();
+
+        Object.keys(updates).forEach((key, index) => {
+            const attrName = `#attr${index}`;
+            const attrValue = `:val${index}`;
+            updateExpressions.push(`${attrName} = ${attrValue}`);
+            expressionAttributeNames[attrName] = key;
+            expressionAttributeValues[attrValue] = updates[key as keyof typeof updates];
+        });
+
+        const command = new PutCommand({
+            TableName: TABLES.GENERATION_JOBS,
+            Item: {
+                id: jobId,
+                ...updates
+            }
+        });
+
+        await docClient.send(command);
+    },
+
+    async getGenerationJob(jobId: string): Promise<GenerationJob | null> {
+        const command = new QueryCommand({
+            TableName: TABLES.GENERATION_JOBS,
+            KeyConditionExpression: "id = :jobId",
+            ExpressionAttributeValues: { ":jobId": jobId }
+        });
+        const response = await docClient.send(command);
+        return (response.Items?.[0] as GenerationJob) || null;
     }
 };
