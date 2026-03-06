@@ -389,7 +389,7 @@ export class SolverAgent {
             config.totalQuestions
         );
 
-        console.log('Domain allocation:', allocations.map(a => 
+        console.log('Domain allocation:', allocations.map(a =>
             `${a.domain.name}: ${a.questionCount} questions`
         ).join(', '));
 
@@ -416,7 +416,7 @@ export class SolverAgent {
                     );
 
                     questions.push(question);
-                    
+
                     // Update domain statistics
                     const currentCount = domainStats.get(allocation.domain.name) || 0;
                     domainStats.set(allocation.domain.name, currentCount + 1);
@@ -481,8 +481,8 @@ export class SolverAgent {
         const totalDuration = Date.now() - startTime;
 
         // Calculate average time per question (avoid division by zero)
-        const averageTimePerQuestion = questions.length > 0 
-            ? totalDuration / questions.length 
+        const averageTimePerQuestion = questions.length > 0
+            ? totalDuration / questions.length
             : 0;
 
         const result: import('../types').GenerationResult = {
@@ -677,7 +677,7 @@ export class SolverAgent {
         jobId: string,
         exam: Exam,
         config: GenerationConfig,
-        attemptId: string
+        _attemptId: string
     ): Promise<void> {
         const startTime = new Date().toISOString();
         console.log(

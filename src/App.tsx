@@ -85,8 +85,8 @@ function App() {
 
         if (dbExams.length === 0) {
           console.log("Database empty. Performing cold start discovery...");
-          const defaultExam = await librarian.discoverExam('AWS Certified Solutions Architect - Associate');
-          setExams([defaultExam]);
+          const discovery = await librarian.discoverExam('AWS Certified Solutions Architect - Associate');
+          setExams([discovery.exam]);
         } else {
           setExams(dbExams);
         }
@@ -108,7 +108,8 @@ function App() {
         throw new Error("AWS_CREDENTIALS_MISSING: Verifica las variables de entorno en .env");
       }
 
-      const newExam = await librarian.discoverExam(examName);
+      const discovery = await librarian.discoverExam(examName);
+      const newExam = discovery.exam;
       console.log("Exam discovered and saved:", newExam);
 
       setExams(prev => {

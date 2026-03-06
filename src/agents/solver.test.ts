@@ -18,7 +18,11 @@ describe('SolverAgent - Progressive Generation', () => {
                 { name: 'Domain 3', weight: 30 }
             ],
             duration_minutes: 120,
-            total_questions_official: 50
+            total_questions_official: 50,
+            is_active: true,
+            created_by: 'admin-1',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
         };
     });
 
@@ -109,7 +113,7 @@ describe('SolverAgent - Progressive Generation', () => {
             expect(result.generationStatus).toBe('in_progress');
             expect(result.backgroundJobId).toBeDefined();
             expect(result.backgroundJobId).toMatch(/^job-/);
-            
+
             // First block should be generated synchronously
             expect(mockGenerate).toHaveBeenCalledTimes(1);
             expect(mockGenerate).toHaveBeenCalledWith(
