@@ -7,6 +7,9 @@ import { dbService } from '../services/db';
 vi.mock('../services/aws', () => ({
     bedrockClient: {
         send: vi.fn()
+    },
+    AI_MODELS: {
+        DEFAULT_FAST: "anthropic.claude-3-5-haiku-20241022-v1:0"
     }
 }));
 

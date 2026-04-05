@@ -6,10 +6,13 @@ import ExamResults from './components/ExamResults'
 import UserDashboard from './components/UserDashboard'
 import AdminDashboard from './components/AdminDashboard'
 import StudyCommitment from './components/StudyCommitment'
+import ExamLengthSelector from './components/ExamLengthSelector'
+import QuestionGenerationSpinner from './components/QuestionGenerationSpinner'
+import AdminExamManagement from './components/AdminExamManagement'
 import { librarian } from './agents/librarian'
 import { solver } from './agents/solver'
 import { mentor } from './agents/mentor'
-import type { Exam, Question, ExamAttempt, UserProfile, Difficulty, StudyGuide } from './types'
+import type { Exam, Question, ExamAttempt, UserProfile, Difficulty, StudyGuide, GenerationProgress } from './types'
 import { Zap, Award, Target, BookOpen, AlertCircle, ChevronLeft, Loader2 } from 'lucide-react'
 import { useLanguage } from './components/LanguageContext'
 import { useAuth } from './components/AuthContext'
@@ -99,6 +102,8 @@ function App() {
 
   const [generatingQuestions, setGeneratingQuestions] = useState(false);
   const [currentQuestions, setCurrentQuestions] = useState<Question[]>([]);
+  const [generationProgress, setGenerationProgress] = useState<GenerationProgress | null>(null);
+  const [examLengthPercentage, setExamLengthPercentage] = useState<50 | 75 | 100>(100);
 
   const handleAddExam = async (examName: string) => {
     console.log(`Starting addition of exam: ${examName}`);
@@ -143,6 +148,7 @@ function App() {
 
   const handleStartExamData = async (exam: Exam, difficulty: Difficulty, mode: 'simulator' | 'real', count?: number) => {
     setGeneratingQuestions(true);
+    setGenerationProgress(null);
     setExamMode(mode);
     const questionsToGenerate = count || selectedQuestionCount;
     try {
@@ -183,7 +189,7 @@ function App() {
       exam_id: activeExam?.id || 'unknown',
       mode: examMode || 'real',
       difficulty: activeDifficulty,
-      exam_length_percentage: 100, // Default to 100% for now
+      exam_length_percentage: examLengthPercentage,
       total_questions_requested: finishedQuestions.length,
       start_time: new Date().toISOString(),
       end_time: new Date().toISOString(),
@@ -262,12 +268,16 @@ function App() {
     if (generatingQuestions) {
       return (
         <div className="app-container flex-center">
-          <div className="loading-state card fade-in text-center">
-            <Loader2 className="animate-spin mb-1" size={48} color="var(--primary)" />
-            <h2>Generando tu simulador...</h2>
-            <p className="text-secondary">El Agente AI (Bedrock) está creando {selectedQuestionCount} preguntas personalizadas para ti.</p>
-            <p className="text-secondary small">Esto garantiza cobertura de todas las áreas de estudio.</p>
-          </div>
+          {generationProgress ? (
+            <QuestionGenerationSpinner progress={generationProgress} isFirstBlock />
+          ) : (
+            <div className="loading-state card fade-in text-center">
+              <Loader2 className="animate-spin mb-1" size={48} color="var(--primary)" />
+              <h2>Generando tu simulador...</h2>
+              <p className="text-secondary">El Agente AI (Bedrock) está creando {selectedQuestionCount} preguntas personalizadas para ti.</p>
+              <p className="text-secondary small">Esto garantiza cobertura de todas las áreas de estudio.</p>
+            </div>
+          )}
         </div>
       );
     }
@@ -316,29 +326,14 @@ function App() {
                     <Zap size={20} color="var(--secondary)" />
                     <h3>Número de Preguntas</h3>
                   </div>
-                  <div className="question-count-options">
-                    <button
-                      className={`count-btn ${selectedQuestionCount === qMin ? 'active' : ''}`}
-                      onClick={() => setSelectedQuestionCount(qMin)}
-                    >
-                      <span>Min (50%)</span>
-                      <strong>{qMin}</strong>
-                    </button>
-                    <button
-                      className={`count-btn ${selectedQuestionCount === qMid ? 'active' : ''}`}
-                      onClick={() => setSelectedQuestionCount(qMid)}
-                    >
-                      <span>Med (75%)</span>
-                      <strong>{qMid}</strong>
-                    </button>
-                    <button
-                      className={`count-btn ${selectedQuestionCount === qMax ? 'active' : ''}`}
-                      onClick={() => setSelectedQuestionCount(qMax)}
-                    >
-                      <span>Max (100%)</span>
-                      <strong>{qMax}</strong>
-                    </button>
-                  </div>
+                  <ExamLengthSelector
+                    exam={activeExam}
+                    onSelect={(pct, count) => {
+                      setExamLengthPercentage(pct);
+                      setSelectedQuestionCount(count);
+                    }}
+                    onStart={() => {/* handled by mode cards below */}}
+                  />
                 </div>
               </div>
 
@@ -403,14 +398,21 @@ function App() {
 
       <main className="main-content">
         {user.role === 'admin' ? (
-          <AdminDashboard
-            users={[profile]}
-            exams={exams}
-            attempts={attempts}
-            onAddExam={handleAddExam}
-            onDeleteExam={handleDeleteExam}
-            initialView={dashboardView as any}
-          />
+          <>
+            <AdminDashboard
+              users={[profile]}
+              exams={exams}
+              attempts={attempts}
+              onAddExam={handleAddExam}
+              onDeleteExam={handleDeleteExam}
+              initialView={dashboardView as any}
+            />
+            {dashboardView === 'exam-management' && (
+              <div style={{ marginTop: '1.5rem' }}>
+                <AdminExamManagement adminUserId={user.id} />
+              </div>
+            )}
+          </>
         ) : (
           <UserDashboard
             user={profile}

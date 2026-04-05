@@ -1,5 +1,5 @@
 import { InvokeModelCommand } from "@aws-sdk/client-bedrock-runtime";
-import { bedrockClient } from "../services/aws";
+import { bedrockClient, AI_MODELS } from "../services/aws";
 import { robustParseJson } from "../services/ai-utils";
 import type { ExamAttempt, StudyGuide, Exam } from '../types';
 
@@ -82,7 +82,7 @@ export class MentorAgent {
 
         try {
             const command = new InvokeModelCommand({
-                modelId: "anthropic.claude-3-haiku-20240307-v1:0",
+                modelId: AI_MODELS.DEFAULT_FAST,
                 contentType: "application/json",
                 accept: "application/json",
                 body: JSON.stringify({

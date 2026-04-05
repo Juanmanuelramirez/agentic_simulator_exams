@@ -14,6 +14,13 @@ const CREDENTIALS = {
     secretAccessKey: import.meta.env.VITE_AWS_SECRET_ACCESS_KEY || 'dummy',
 };
 
+// Bedrock Model IDs
+export const AI_MODELS = {
+    CLAUDE_3_HAIKU: "anthropic.claude-3-haiku-20240307-v1:0",
+    CLAUDE_3_5_HAIKU: "anthropic.claude-3-5-haiku-20241022-v1:0",
+    DEFAULT_FAST: "anthropic.claude-3-5-haiku-20241022-v1:0"
+};
+
 // Bedrock Client (Hardcoded to us-east-1 for Claude 3 Haiku availability)
 export const bedrockClient = new BedrockRuntimeClient({
     region: 'us-east-1',
