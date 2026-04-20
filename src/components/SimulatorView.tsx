@@ -6,10 +6,7 @@ import {
   ChevronLeft,
   Loader2,
   X,
-  LayoutDashboard,
   BookOpen,
-  History,
-  RotateCcw,
   CheckCircle,
   ShieldCheck
 } from 'lucide-react';
@@ -29,21 +26,23 @@ const SimulatorView: React.FC<SimulatorViewProps> = ({ exam, initialQuestions, o
   const { t } = useLanguage();
 
   // Sincronizar cuando llegan más preguntas del background
+  // Preserve user answers when merging new background-generated questions
   useEffect(() => {
     if (initialQuestions.length > questions.length) {
-      setQuestions(initialQuestions);
+      setQuestions(prev => {
+        const merged = [...prev];
+        // Append only the new questions that arrived from background generation
+        for (let i = prev.length; i < initialQuestions.length; i++) {
+          merged.push(initialQuestions[i]);
+        }
+        return merged;
+      });
     }
   }, [initialQuestions.length]);
 
   const handleNext = () => {
     if (currentIdx < questions.length - 1) {
-      const nextIdx = currentIdx + 1;
-      if (questions[nextIdx] && !questions[nextIdx].user_selected_ids) {
-        const updated = [...questions];
-        updated[nextIdx] = { ...updated[nextIdx], user_selected_ids: [] };
-        setQuestions(updated);
-      }
-      setCurrentIdx(nextIdx);
+      setCurrentIdx(currentIdx + 1);
     } else {
       onFinish(questions);
     }
@@ -77,14 +76,9 @@ const SimulatorView: React.FC<SimulatorViewProps> = ({ exam, initialQuestions, o
         <div className="brand-logo mb-3" style={{ background: 'var(--primary)', color: 'white', padding: '8px', borderRadius: '10px' }}>
           <ShieldCheck size={24} />
         </div>
-        <button className="mini-nav-item"><LayoutDashboard size={20} /></button>
-        <button className="mini-nav-item active"><BookOpen size={20} /></button>
-        <button className="mini-nav-item"><History size={20} /></button>
-        <button className="mini-nav-item"><RotateCcw size={20} /></button>
-
-        <div style={{ marginTop: 'auto', marginBottom: '1rem' }}>
-          <div className="user-avatar" style={{ background: '#f1f5f9', color: '#64748b' }}>JD</div>
-        </div>
+        <button className="mini-nav-item active" title={t('simulator')}>
+          <BookOpen size={20} />
+        </button>
       </aside>
 
       <main className="main-content">
@@ -264,19 +258,23 @@ const SimulatorView: React.FC<SimulatorViewProps> = ({ exam, initialQuestions, o
           padding: 0.75rem 1.75rem;
           border-radius: 12px;
           font-weight: 700;
-          background: #94a3b8;
-          color: white;
+          background: #cbd5e1;
+          color: #64748b;
           border: none;
           transition: all 0.2s;
           cursor: not-allowed;
+          font-size: 0.9375rem;
         }
         .pro-btn-main.active {
-          background: #64748b;
+          background: var(--primary);
+          color: white;
           cursor: pointer;
+          box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
         }
         .pro-btn-main.active:hover {
-          background: #475569;
+          background: var(--primary-hover);
           transform: translateY(-1px);
+          box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
         }
         
         .flex { display: flex; }

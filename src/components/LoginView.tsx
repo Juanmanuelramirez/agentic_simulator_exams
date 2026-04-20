@@ -21,6 +21,12 @@ const LoginView: React.FC = () => {
         setError('');
         setLoading(true);
         try {
+            // Clear any stale session before attempting sign-in
+            try {
+                const { signOut } = await import('aws-amplify/auth');
+                await signOut();
+            } catch (_) { /* no session to clear — ignore */ }
+
             const { nextStep } = await signIn({ username: email, password });
             if (nextStep.signInStep === 'CONFIRM_SIGN_UP') {
                 setMode('confirm');
@@ -381,13 +387,21 @@ const LoginView: React.FC = () => {
                     gap: 1rem;
                     grid-template-columns: 1fr 1fr;
                 }
+                @media (max-width: 400px) {
+                    .login-actions { grid-template-columns: 1fr; }
+                }
                 .google-btn { background: white; color: #444; }
                 .amazon-btn { background: #232f3e; }
                 .error-text {
-                    color: #ff4d4d;
+                    color: #ff6b6b;
                     font-size: 0.85rem;
-                    margin: -0.5rem 0 0.5rem;
+                    margin: 0.25rem 0 0.5rem;
                     text-align: left;
+                    background: rgba(255, 77, 77, 0.12);
+                    border: 1px solid rgba(255, 77, 77, 0.25);
+                    border-radius: 8px;
+                    padding: 0.6rem 0.75rem;
+                    line-height: 1.4;
                 }
                 .login-footer {
                     margin-top: 1.5rem;

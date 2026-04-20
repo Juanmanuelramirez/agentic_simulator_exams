@@ -30,13 +30,15 @@ Agentic Exam Simulator is a state-of-the-art web application designed to revolut
 
 🤖 **AI Agents**
 - **Librarian Agent**: Discovers official certification blueprints and structures exam domains.
-- **Solver Agent (Expert)**: Generates high-quality, high-difficulty exam questions with realistic business scenarios and confusing distractors.
+- **Solver Agent (Expert)**: Generates high-quality exam questions with randomized answer positions, diverse enterprise scenarios, and engineered distractors. Includes retry logic with exponential backoff.
 - **Mentor Agent**: Analyzes performance results to generate personalized study plans and guides.
 
 🚀 **User Experience**
 - **Personalized Dashboard**: Track your performance across domains, view your streak, and manage study commitments.
 - **Study Guide Generator**: Click a button to have the AI analyze your mistakes and create a Markdown study guide.
 - **Review Mode**: Go back through past exams to see detailed AI explanations for every question.
+- **Answer Persistence**: Selections are preserved when navigating between questions and during background generation.
+- **Stale Session Cleanup**: Automatic sign-out of stale sessions before new login attempts.
 
 🛠️ **Admin Panel**
 - **Organization Management**: Create, edit, and deactivate organizations (multi-tenant).

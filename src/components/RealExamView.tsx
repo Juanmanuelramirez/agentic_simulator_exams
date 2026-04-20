@@ -28,9 +28,16 @@ const RealExamView: React.FC<RealExamViewProps> = ({ exam, initialQuestions, onE
     const [showPauseConfirm, setShowPauseConfirm] = useState(false);
 
     // Sincronizar cuando llegan más preguntas del background
+    // Preserve user answers when merging new background-generated questions
     useEffect(() => {
         if (initialQuestions.length > questions.length) {
-            setQuestions(initialQuestions);
+            setQuestions(prev => {
+                const merged = [...prev];
+                for (let i = prev.length; i < initialQuestions.length; i++) {
+                    merged.push(initialQuestions[i]);
+                }
+                return merged;
+            });
         }
     }, [initialQuestions.length]);
     const [timeLeft, setTimeLeft] = useState(exam.duration_minutes * 60);

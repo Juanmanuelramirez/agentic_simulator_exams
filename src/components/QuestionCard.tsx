@@ -23,10 +23,10 @@ const QuestionCard: React.FC<QuestionCardProps> = ({
   const [localSelected, setLocalSelected] = React.useState<string[]>(userSelectedIds);
   const { t } = useLanguage();
 
-  // Reset selection when the question changes
+  // Reset selection when the question changes (by id), but preserve selections for the same question
   React.useEffect(() => {
     setLocalSelected(userSelectedIds);
-  }, [question.id, userSelectedIds]);
+  }, [question.id]);
 
   const toggleOption = (id: string) => {
     if (isVerified) return;
@@ -158,6 +158,7 @@ const QuestionCard: React.FC<QuestionCardProps> = ({
                 }
                 
                 .option-row:hover:not(:disabled) { border-color: var(--primary); background: #f8fafc; }
+                .option-row:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
                 .option-row.selected { border-color: var(--primary); border-width: 2px; padding: calc(1rem - 1px) calc(1.5rem - 1px); }
                 
                 .option-letter {

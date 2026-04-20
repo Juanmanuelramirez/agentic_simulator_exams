@@ -20,8 +20,17 @@ Super Admins manage organizations with scoped exam access:
 - Integrated via Cognito Hosted UI
 - OAuth 2.0 flow with automatic attribute mapping
 - Configured as identity provider in the User Pool
+- Stale session auto-cleanup on login (prevents "already signed in" errors)
 
-### 3. Flexible Exam Lengths
+### 3. Exam Quality & Answer Integrity
+AI-generated questions include multiple quality safeguards:
+- **Answer position randomization**: Correct answers are shuffled across A/B/C/D positions after generation to prevent positional bias
+- **Question uniqueness**: Higher temperature (0.7) and explicit uniqueness instructions produce diverse enterprise scenarios
+- **Answer persistence**: User selections are preserved when navigating between questions and during background generation
+- **Retry on failure**: Failed background questions retry up to 3 times with exponential backoff to ensure the requested count is met
+- **Distractor engineering**: Each incorrect option is a plausible architectural approach that fails on exactly one named dimension
+
+### 4. Flexible Exam Lengths
 Students can choose their preferred exam length:
 - **50%** - Half the official exam (e.g., 33 questions for 65-question exam)
 - **75%** - Three-quarters length (e.g., 49 questions)

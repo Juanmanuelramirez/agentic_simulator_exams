@@ -159,8 +159,8 @@ const Sidebar: React.FC<SidebarProps> = ({ user, activeView, onViewChange, onLog
               className={`nav-item ${activeView === 'study' ? 'active' : ''}`}
               onClick={() => handleNavClick('study')}
             >
-              <Users size={20} />
-              <span>{t('students')}</span>
+              <BookOpen size={20} />
+              <span>{t('studyGuide')}</span>
             </button>
           )}
         </nav>
@@ -424,15 +424,6 @@ const Sidebar: React.FC<SidebarProps> = ({ user, activeView, onViewChange, onLog
           box-shadow: 0 0 0 1px var(--primary);
         }
         .lang-flag { line-height: 1; }
-          color: #9ca3af;
-          cursor: pointer;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          padding: 0.4rem;
-          border-radius: 6px;
-          transition: all 0.2s;
-        }
 
         .modal-overlay {
             position: fixed;

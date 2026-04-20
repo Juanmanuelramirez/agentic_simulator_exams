@@ -80,6 +80,16 @@ DISTRACTOR QUALITY (CRITICAL):
 - NEVER include obviously wrong options like "manually configure" or "use a single Lambda for everything."
 - Each option should be 1-2 sentences describing a complete architectural approach with specific service names.
 
+CORRECT ANSWER PLACEMENT (CRITICAL):
+- The correct answer MUST be placed RANDOMLY among options A, B, C, D — NOT always in the same position.
+- Vary the correct answer position across questions. Sometimes A, sometimes B, sometimes C, sometimes D.
+- For this question, place the correct answer at position ${['A', 'B', 'C', 'D'][Math.floor(Math.random() * 4)]}.
+
+QUESTION UNIQUENESS (CRITICAL):
+- Each question must present a UNIQUE enterprise scenario with different business constraints, services, and architectural decisions.
+- NEVER reuse the same scenario structure, service combination, or question pattern.
+- Vary the organizational context: different industries, team sizes, compliance requirements, and technical constraints.
+
 EXPLANATION RULES:
 - NEVER reference options by letter (A, B, C, D). Always reference by service/concept name.
 - Explain the architectural PATTERN behind the correct answer (e.g., "Centralized Tooling Pattern", "Policy as Code", "Event-Driven Architecture").
@@ -99,7 +109,7 @@ Return ONLY valid JSON:
         {"id": "C", "text": "Another valid approach that introduces unnecessary operational overhead or misses a key requirement (2-3 sentences in English)"},
         {"id": "D", "text": "Approach that uses an anti-pattern or violates a core principle of the ${role} discipline (2-3 sentences in English)"}
     ],
-    "correct_ids": ${type === 'multi_select' ? '["A", "C"]' : '["B"]'},
+    "correct_ids": ${type === 'multi_select' ? '["A", "C"]' : '["C"]'},
     "explanation": "Architectural deep dive (200-300 words, in ${language}). Name the architectural pattern. Explain WHY the correct approach is optimal. For each incorrect approach, state the specific service/concept name and the dimension where it fails. Never use letters A/B/C/D.",
     "why_correct": "Name the architectural pattern and explain why it is the optimal solution for this specific scenario (in ${language}).",
     "why_incorrect": [
@@ -123,7 +133,7 @@ Strictly return ONLY the JSON. No preamble, no markdown.
                     messages: [
                         { role: "user", content: prompt }
                     ],
-                    temperature: 0.3,
+                    temperature: 0.7,
                 }),
             });
 
@@ -149,6 +159,22 @@ Strictly return ONLY the JSON. No preamble, no markdown.
             if (type === 'multi_select' && aiGenerated.correct_ids.length < 2) {
                 aiGenerated.correct_ids = optionIds.slice(0, 2);
             }
+
+            // Shuffle options to prevent positional bias (correct answer always in same spot)
+            const shuffledOptions = [...aiGenerated.options];
+            for (let i = shuffledOptions.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [shuffledOptions[i], shuffledOptions[j]] = [shuffledOptions[j], shuffledOptions[i]];
+            }
+            // Re-assign letter IDs after shuffle, preserving correct_ids mapping
+            const oldIdToNew = new Map<string, string>();
+            shuffledOptions.forEach((opt, idx) => {
+                const newId = String.fromCharCode(65 + idx); // A, B, C, D
+                oldIdToNew.set(opt.id, newId);
+                opt.id = newId;
+            });
+            aiGenerated.options = shuffledOptions;
+            aiGenerated.correct_ids = aiGenerated.correct_ids.map((id: string) => oldIdToNew.get(id) || id);
 
             const question: Question = {
                 id: `q-${Math.random().toString(36).substr(2, 9)}`,

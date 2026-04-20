@@ -236,14 +236,24 @@ function App() {
 
         // No await — corre en background
         (async () => {
+          let generated = initialCount;
           for (let i = initialCount; i < questionsToGenerate; i++) {
-            try {
-              const domain = exam.domains[i % exam.domains.length];
-              const q = await solver.generateQuestion(exam, difficulty, language, domain);
-              setCurrentQuestions(prev => [...prev, q]);
-              setBgGenerationDone(i + 1);
-            } catch (err) {
-              console.warn(`Background question ${i + 1} failed, skipping`, err);
+            const domain = exam.domains[i % exam.domains.length];
+            let success = false;
+            for (let attempt = 0; attempt < 3 && !success; attempt++) {
+              try {
+                const q = await solver.generateQuestion(exam, difficulty, language, domain);
+                setCurrentQuestions(prev => [...prev, q]);
+                generated++;
+                setBgGenerationDone(generated);
+                success = true;
+              } catch (err) {
+                console.warn(`Background question ${i + 1} attempt ${attempt + 1} failed`, err);
+                if (attempt < 2) await new Promise(r => setTimeout(r, 2000 * (attempt + 1)));
+              }
+            }
+            if (!success) {
+              console.warn(`Background question ${i + 1} failed after 3 retries, skipping`);
             }
           }
           // Generación completa
