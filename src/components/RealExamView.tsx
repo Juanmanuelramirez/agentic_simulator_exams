@@ -19,11 +19,20 @@ interface RealExamViewProps {
     initialQuestions: Question[];
     onExit: () => void;
     onFinish: (questions: Question[]) => void;
+    onPause?: (questions: Question[], currentIdx: number) => void;
 }
 
-const RealExamView: React.FC<RealExamViewProps> = ({ exam, initialQuestions, onExit, onFinish }) => {
+const RealExamView: React.FC<RealExamViewProps> = ({ exam, initialQuestions, onExit, onFinish, onPause }) => {
     const [questions, setQuestions] = useState<Question[]>(initialQuestions);
     const [currentIdx, setCurrentIdx] = useState(0);
+    const [showPauseConfirm, setShowPauseConfirm] = useState(false);
+
+    // Sincronizar cuando llegan más preguntas del background
+    useEffect(() => {
+        if (initialQuestions.length > questions.length) {
+            setQuestions(initialQuestions);
+        }
+    }, [initialQuestions.length]);
     const [timeLeft, setTimeLeft] = useState(exam.duration_minutes * 60);
 
     const handleFinish = useCallback(() => {
@@ -103,8 +112,26 @@ const RealExamView: React.FC<RealExamViewProps> = ({ exam, initialQuestions, onE
                         <button onClick={onExit} className="icon-btn-circle">
                             <X size={20} />
                         </button>
+                        {onPause && (
+                            <button onClick={() => setShowPauseConfirm(true)} style={{ padding: '0.375rem 0.75rem', background: '#fef3c7', color: '#92400e', border: '1px solid #fcd34d', borderRadius: 8, fontWeight: 600, fontSize: '0.8125rem', cursor: 'pointer' }}>
+                                ⏸ Pausar
+                            </button>
+                        )}
                     </div>
                 </header>
+
+                {showPauseConfirm && (
+                    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <div style={{ background: 'white', borderRadius: 16, padding: '2rem', maxWidth: 400, width: '90%', textAlign: 'center' }}>
+                            <h3 style={{ marginBottom: '0.5rem' }}>⏸ Pausar Examen</h3>
+                            <p style={{ color: '#64748b', marginBottom: '1.5rem' }}>Tu progreso se guardará. Podrás continuar desde la pregunta {currentIdx + 1}.</p>
+                            <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center' }}>
+                                <button onClick={() => setShowPauseConfirm(false)} style={{ padding: '0.625rem 1.25rem', background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: 10, fontWeight: 600, cursor: 'pointer' }}>Continuar</button>
+                                <button onClick={() => onPause?.(questions, currentIdx)} style={{ padding: '0.625rem 1.25rem', background: '#f59e0b', color: 'white', border: 'none', borderRadius: 10, fontWeight: 700, cursor: 'pointer' }}>Pausar y Salir</button>
+                            </div>
+                        </div>
+                    </div>
+                )}
 
                 <div className="exam-body-layout">
                     <aside className="nav-panel">

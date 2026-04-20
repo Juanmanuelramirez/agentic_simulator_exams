@@ -1,0 +1,74 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Rol IAM para usuarios autenticados de Exam Simulator (Bedrock, DynamoDB, Translate)'
+
+Parameters:
+  AppName:
+    Type: String
+    Default: agentic-exam-simulator
+  CognitoIdentityPoolId:
+    Type: String
+    Description: ID del Identity Pool de Cognito (si se usa Cognito Identity)
+    Default: 'PLACEHOLDER'
+
+Resources:
+
+  # Rol para usuarios autenticados via Cognito
+  AuthenticatedUserRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${AppName}-authenticated-role'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: cognito-identity.amazonaws.com
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                'cognito-identity.amazonaws.com:aud': !Ref CognitoIdentityPoolId
+              ForAnyValue:StringLike:
+                'cognito-identity.amazonaws.com:amr': authenticated
+      Policies:
+        - PolicyName: ExamSimulatorAppPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              # DynamoDB - solo las tablas del proyecto
+              - Sid: DynamoDBAccess
+                Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                Resource:
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/ExamSimulator-*'
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/ExamSimulator-*/index/*'
+              # Bedrock - modelos de generacion de preguntas
+              - Sid: BedrockAccess
+                Effect: Allow
+                Action:
+                  - bedrock:InvokeModel
+                  - bedrock:InvokeModelWithResponseStream
+                Resource:
+                  - !Sub 'arn:aws:bedrock:${AWS::Region}::foundation-model/anthropic.claude-3-haiku*'
+                  - !Sub 'arn:aws:bedrock:${AWS::Region}::foundation-model/anthropic.claude-3-sonnet*'
+                  - !Sub 'arn:aws:bedrock:${AWS::Region}::foundation-model/amazon.titan*'
+              # Translate - traduccion de preguntas
+              - Sid: TranslateAccess
+                Effect: Allow
+                Action:
+                  - translate:TranslateText
+                Resource: '*'
+      Tags:
+        - Key: Project
+          Value: AgenticSimulator
+
+Outputs:
+  AuthenticatedRoleArn:
+    Value: !GetAtt AuthenticatedUserRole.Arn
+    Export:
+      Name: !Sub '${AppName}-AuthenticatedRoleArn'

@@ -1,9 +1,9 @@
-import { docClient } from "./aws";
+import { createDynamoDBClient, hasActiveSession } from "./aws";
 import {
     PutCommand,
     ScanCommand,
     QueryCommand,
-    DeleteCommand
+    DeleteCommand,
 } from "@aws-sdk/lib-dynamodb";
 import type { Exam, ExamAttempt, Question, GenerationJob } from "../types";
 
@@ -11,126 +11,104 @@ const TABLES = {
     EXAMS: "ExamSimulator-Simulators",
     QUESTIONS: "ExamSimulator-Questions",
     ATTEMPTS: "ExamSimulator-Attempts",
-    GENERATION_JOBS: "ExamSimulator-GenerationJobs"
+    GENERATION_JOBS: "ExamSimulator-GenerationJobs",
+    ORGANIZATIONS: "ExamSimulator-Organizations",
 };
 
+export { TABLES };
+
 export const dbService = {
-    /** Verify if real credentials are being used */
-    hasValidCredentials(): boolean {
-        return !!import.meta.env.VITE_AWS_ACCESS_KEY_ID &&
-            import.meta.env.VITE_AWS_ACCESS_KEY_ID !== 'dummy';
+    /** Verifica si hay una sesión activa con credenciales temporales válidas */
+    async hasValidCredentials(): Promise<boolean> {
+        return hasActiveSession();
     },
 
-    // --- EXAMS (Simulators) ---
+    // ── EXAMS ────────────────────────────────────────────────────────────────
     async getExams(): Promise<Exam[]> {
-        const command = new ScanCommand({ TableName: TABLES.EXAMS });
-        const response = await docClient.send(command);
+        const client = await createDynamoDBClient();
+        const response = await client.send(new ScanCommand({ TableName: TABLES.EXAMS }));
         return (response.Items as Exam[]) || [];
     },
 
     async saveExam(exam: Exam): Promise<void> {
-        const command = new PutCommand({
-            TableName: TABLES.EXAMS,
-            Item: exam
-        });
-        await docClient.send(command);
+        const client = await createDynamoDBClient();
+        await client.send(new PutCommand({ TableName: TABLES.EXAMS, Item: exam }));
     },
 
     async deleteExam(examId: string): Promise<void> {
-        const command = new DeleteCommand({
+        const client = await createDynamoDBClient();
+        await client.send(new DeleteCommand({
             TableName: TABLES.EXAMS,
-            Key: { id: examId }
-        });
-        await docClient.send(command);
+            Key: { id: examId },
+        }));
     },
 
-    // --- QUESTIONS ---
+    // ── QUESTIONS ────────────────────────────────────────────────────────────
     async getQuestionsByExam(examId: string): Promise<Question[]> {
-        const command = new QueryCommand({
+        const client = await createDynamoDBClient();
+        const response = await client.send(new QueryCommand({
             TableName: TABLES.QUESTIONS,
             IndexName: "ExamQuestionsIndex",
             KeyConditionExpression: "exam_id = :examId",
-            ExpressionAttributeValues: { ":examId": examId }
-        });
-        const response = await docClient.send(command);
+            ExpressionAttributeValues: { ":examId": examId },
+        }));
         return (response.Items as Question[]) || [];
     },
 
     async saveQuestion(question: Question & { exam_id: string }): Promise<void> {
-        const command = new PutCommand({
-            TableName: TABLES.QUESTIONS,
-            Item: question
-        });
-        await docClient.send(command);
+        const client = await createDynamoDBClient();
+        await client.send(new PutCommand({ TableName: TABLES.QUESTIONS, Item: question }));
     },
 
-    // --- ATTEMPTS ---
+    // ── ATTEMPTS ─────────────────────────────────────────────────────────────
     async getUserAttempts(userId: string): Promise<ExamAttempt[]> {
-        const command = new QueryCommand({
+        const client = await createDynamoDBClient();
+        const response = await client.send(new QueryCommand({
             TableName: TABLES.ATTEMPTS,
             IndexName: "UserAttemptsIndex",
             KeyConditionExpression: "user_id = :userId",
-            ExpressionAttributeValues: { ":userId": userId }
-        });
-        const response = await docClient.send(command);
+            ExpressionAttributeValues: { ":userId": userId },
+        }));
         return (response.Items as ExamAttempt[]) || [];
     },
 
     async saveAttempt(attempt: ExamAttempt & { user_id: string }): Promise<void> {
-        const command = new PutCommand({
-            TableName: TABLES.ATTEMPTS,
-            Item: attempt
-        });
-        await docClient.send(command);
+        const client = await createDynamoDBClient();
+        await client.send(new PutCommand({ TableName: TABLES.ATTEMPTS, Item: attempt }));
     },
 
-    // --- GENERATION JOBS ---
+    async deleteAttempt(attemptId: string): Promise<void> {
+        const client = await createDynamoDBClient();
+        await client.send(new DeleteCommand({
+            TableName: TABLES.ATTEMPTS,
+            Key: { id: attemptId },
+        }));
+    },
+
+    // ── GENERATION JOBS ───────────────────────────────────────────────────────
     async saveGenerationJob(job: GenerationJob): Promise<void> {
-        const command = new PutCommand({
-            TableName: TABLES.GENERATION_JOBS,
-            Item: job
-        });
-        await docClient.send(command);
+        const client = await createDynamoDBClient();
+        await client.send(new PutCommand({ TableName: TABLES.GENERATION_JOBS, Item: job }));
     },
 
     async updateGenerationJob(
         jobId: string,
-        updates: Partial<Omit<GenerationJob, 'id' | 'created_at'>>
+        updates: Partial<Omit<GenerationJob, "id" | "created_at">>
     ): Promise<void> {
-        // Build update expression dynamically
-        const updateExpressions: string[] = [];
-        const expressionAttributeNames: Record<string, string> = {};
-        const expressionAttributeValues: Record<string, any> = {};
-
-        // Always update updated_at
-        updates.updated_at = new Date().toISOString();
-
-        Object.keys(updates).forEach((key, index) => {
-            const attrName = `#attr${index}`;
-            const attrValue = `:val${index}`;
-            updateExpressions.push(`${attrName} = ${attrValue}`);
-            expressionAttributeNames[attrName] = key;
-            expressionAttributeValues[attrValue] = updates[key as keyof typeof updates];
-        });
-
-        const command = new PutCommand({
+        const client = await createDynamoDBClient();
+        await client.send(new PutCommand({
             TableName: TABLES.GENERATION_JOBS,
-            Item: {
-                id: jobId,
-                ...updates
-            }
-        });
-
-        await docClient.send(command);
+            Item: { id: jobId, ...updates, updated_at: new Date().toISOString() },
+        }));
     },
 
     async getGenerationJob(jobId: string): Promise<GenerationJob | null> {
-        const command = new QueryCommand({
+        const client = await createDynamoDBClient();
+        const response = await client.send(new QueryCommand({
             TableName: TABLES.GENERATION_JOBS,
             KeyConditionExpression: "id = :jobId",
-            ExpressionAttributeValues: { ":jobId": jobId }
-        });
-        const response = await docClient.send(command);
+            ExpressionAttributeValues: { ":jobId": jobId },
+        }));
         return (response.Items?.[0] as GenerationJob) || null;
-    }
+    },
 };

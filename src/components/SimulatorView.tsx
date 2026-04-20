@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import type { Exam, Question } from '../types';
 import QuestionCard from './QuestionCard';
+import { useLanguage } from './LanguageContext';
 import {
   ChevronLeft,
   Loader2,
@@ -18,11 +19,21 @@ interface SimulatorViewProps {
   initialQuestions: Question[];
   onExit: () => void;
   onFinish: (questions: Question[]) => void;
+  onPause?: (questions: Question[], currentIdx: number) => void;
 }
 
-const SimulatorView: React.FC<SimulatorViewProps> = ({ exam, initialQuestions, onExit, onFinish }) => {
+const SimulatorView: React.FC<SimulatorViewProps> = ({ exam, initialQuestions, onExit, onFinish, onPause }) => {
   const [questions, setQuestions] = useState<Question[]>(initialQuestions);
   const [currentIdx, setCurrentIdx] = useState(0);
+  const [showPauseConfirm, setShowPauseConfirm] = useState(false);
+  const { t } = useLanguage();
+
+  // Sincronizar cuando llegan más preguntas del background
+  useEffect(() => {
+    if (initialQuestions.length > questions.length) {
+      setQuestions(initialQuestions);
+    }
+  }, [initialQuestions.length]);
 
   const handleNext = () => {
     if (currentIdx < questions.length - 1) {
@@ -82,12 +93,12 @@ const SimulatorView: React.FC<SimulatorViewProps> = ({ exam, initialQuestions, o
             <div className="breadcrumbs">
               <span className="text-sm font-medium">{exam.name}</span>
               <ChevronLeft size={14} style={{ transform: 'rotate(180deg)' }} />
-              <span className="current text-indigo-600">Modo Simulador</span>
+              <span className="current text-indigo-600">{t('simulator')}</span>
             </div>
           </div>
 
           <div className="header-center flex items-center gap-4">
-            <span className="text-sm font-bold text-slate-700">Pregunta {currentIdx + 1} / {questions.length}</span>
+            <span className="text-sm font-bold text-slate-700">{t('question')} {currentIdx + 1} / {questions.length}</span>
             <div className="progress-container-mini">
               <div className="progress-bar-mini" style={{ width: `${progressPercent}%` }}></div>
               <div className="progress-dot" style={{ left: `${progressPercent}%` }}></div>
@@ -97,13 +108,32 @@ const SimulatorView: React.FC<SimulatorViewProps> = ({ exam, initialQuestions, o
           <div className="view-header-right flex items-center gap-4">
             <div className="badge-green">
               <CheckCircle size={14} />
-              <span>GUARDADO</span>
+              <span>{t('saved')}</span>
             </div>
+            {onPause && (
+              <button onClick={() => setShowPauseConfirm(true)} className="pause-btn" title="Pausar examen">
+                ⏸ Pausar
+              </button>
+            )}
             <button onClick={onExit} className="icon-btn-circle">
               <X size={20} />
             </button>
           </div>
         </header>
+
+        {/* Pause confirmation modal */}
+        {showPauseConfirm && (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ background: 'white', borderRadius: 16, padding: '2rem', maxWidth: 400, width: '90%', textAlign: 'center' }}>
+              <h3 style={{ marginBottom: '0.5rem' }}>⏸ {t('pauseTitle')}</h3>
+              <p style={{ color: '#64748b', marginBottom: '1.5rem' }}>{t('pauseMessage')} {currentIdx + 1} {t('pauseWhenReturn')}</p>
+              <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center' }}>
+                <button onClick={() => setShowPauseConfirm(false)} style={{ padding: '0.625rem 1.25rem', background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: 10, fontWeight: 600, cursor: 'pointer' }}>{t('continueExam')}</button>
+                <button onClick={() => onPause?.(questions, currentIdx)} style={{ padding: '0.625rem 1.25rem', background: '#f59e0b', color: 'white', border: 'none', borderRadius: 10, fontWeight: 700, cursor: 'pointer' }}>{t('pauseAndExit')}</button>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="simulator-body scrollbar-hide">
           {currentQuestion ? (
@@ -118,7 +148,7 @@ const SimulatorView: React.FC<SimulatorViewProps> = ({ exam, initialQuestions, o
           ) : (
             <div className="loading-state">
               <Loader2 className="animate-spin" size={40} color="var(--primary)" />
-              <p>Cargando preguntas...</p>
+              <p>{t('loading')}</p>
             </div>
           )}
         </div>
@@ -130,7 +160,7 @@ const SimulatorView: React.FC<SimulatorViewProps> = ({ exam, initialQuestions, o
             className="btn-ghost"
           >
             <ChevronLeft size={20} />
-            <span>Anterior</span>
+            <span>{t('previous')}</span>
           </button>
 
           <div className="footer-actions">
@@ -141,11 +171,11 @@ const SimulatorView: React.FC<SimulatorViewProps> = ({ exam, initialQuestions, o
                 disabled={!currentQuestion?.user_selected_ids?.length}
               >
                 <CheckCircle size={20} />
-                <span>Verificar Respuesta</span>
+                <span>{t('verifyAnswer')}</span>
               </button>
             ) : (
               <button onClick={handleNext} className="pro-btn-main active">
-                <span>{currentIdx === questions.length - 1 ? 'Finalizar' : 'Siguiente Pregunta'}</span>
+                <span>{currentIdx === questions.length - 1 ? t('finish') : t('next')}</span>
                 <ChevronLeft size={20} style={{ transform: 'rotate(180deg)' }} />
               </button>
             )}
@@ -200,6 +230,19 @@ const SimulatorView: React.FC<SimulatorViewProps> = ({ exam, initialQuestions, o
         }
         .icon-btn-circle:hover { background: #f1f5f9; color: var(--text-main); }
         
+        .pause-btn {
+          padding: 0.375rem 0.75rem;
+          background: #fef3c7;
+          color: #92400e;
+          border: 1px solid #fcd34d;
+          border-radius: 8px;
+          font-weight: 600;
+          font-size: 0.8125rem;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+        .pause-btn:hover { background: #fde68a; }
+
         .btn-ghost {
           display: flex;
           align-items: center;

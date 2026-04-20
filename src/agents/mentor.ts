@@ -1,10 +1,9 @@
 import { InvokeModelCommand } from "@aws-sdk/client-bedrock-runtime";
-import { bedrockClient, AI_MODELS } from "../services/aws";
+import { createBedrockClient, AI_MODELS } from "../services/aws";
 import { robustParseJson } from "../services/ai-utils";
 import type { ExamAttempt, StudyGuide, Exam } from '../types';
 
 export class MentorAgent {
-    private client = bedrockClient;
 
     constructor() { }
 
@@ -94,7 +93,8 @@ export class MentorAgent {
                 }),
             });
 
-            const response = await this.client.send(command);
+            const client = await createBedrockClient();
+            const response = await client.send(command);
             const responseBody = JSON.parse(new TextDecoder().decode(response.body));
             const rawText = responseBody.content[0].text;
 

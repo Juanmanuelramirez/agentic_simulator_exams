@@ -8,10 +8,14 @@ dist/
 dist-ssr/
 *.local
 
+# Kiro Files
+.kiro
+
 # Environment files
 .env
 .env.local
 .env.production
+.env.deploy
 .env.*.local
 
 # kiro

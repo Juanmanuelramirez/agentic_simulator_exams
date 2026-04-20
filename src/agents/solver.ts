@@ -1,5 +1,5 @@
 import { InvokeModelCommand } from "@aws-sdk/client-bedrock-runtime";
-import { bedrockClient, AI_MODELS } from "../services/aws";
+import { createBedrockClient, AI_MODELS } from "../services/aws";
 import { robustParseJson } from "../services/ai-utils";
 import type { Exam, Question, QuestionType, DomainQuestionAllocation, GenerationConfig, GenerationJob } from '../types';
 import { dbService } from '../services/db';
@@ -10,7 +10,6 @@ import { dbService } from '../services/db';
  * It respects official domain weights and persists results in DynamoDB.
  */
 export class SolverAgent {
-    private client = bedrockClient;
 
     constructor() { }
 
@@ -25,42 +24,93 @@ export class SolverAgent {
         const type: QuestionType = Math.random() > 0.3 ? 'single_select' : 'multi_select';
 
         try {
+            // Usar el system_prompt específico del examen si existe (generado por librarian)
+            const role = exam.target_role || exam.name;
+            const difficultyCtx = exam.difficulty_context
+                ? (exam.difficulty_context[difficulty as keyof typeof exam.difficulty_context] || 'real-world professional scenarios')
+                : ({
+                    beginner: 'foundational concepts, straightforward scenarios',
+                    intermediate: 'multi-service architectures, cost/performance trade-offs, real-world operational scenarios',
+                    advanced: 'complex enterprise scenarios, strict governance/security/compliance constraints, disaster recovery at scale'
+                } as Record<string, string>)[difficulty] || 'real-world scenarios';
+
+            const systemContext = exam.system_prompt
+                ? `${exam.system_prompt}\n\nFor this specific question, focus on domain: "${domain.name}" at difficulty level: "${difficulty}" (${difficultyCtx}).`
+                : `You are a Senior ${role} Professional with 10+ years of experience writing questions for the OFFICIAL "${exam.name}" certification exam.
+
+YOUR MANDATE: Every question you generate must be INDISTINGUISHABLE from a real exam question. A candidate who passes your simulator must be able to pass the real exam on their first attempt.
+
+SCENARIO EVOLUTION METHODOLOGY:
+Before writing each question, mentally evaluate: "Would this question be too easy for a certified professional?" If yes, escalate by:
+1. Adding organizational scale (multi-account, multi-region, multi-team)
+2. Adding compliance/governance constraints (regulatory, audit, data residency)
+3. Adding operational trade-offs (cost vs performance vs availability vs security)
+4. Requiring cross-service integration knowledge (not just single-service recall)
+
+DISTRACTOR ENGINEERING:
+- Each incorrect option MUST be a real architectural approach that a less experienced ${role} would choose
+- Each distractor must fail on exactly ONE named dimension: operational overhead, cost inefficiency, compliance gap, scalability limit, governance weakness, or anti-pattern usage
+- NEVER include obviously wrong options (e.g., "manually configure", "use a single service for everything")
+- All options must be similar in length and technical depth to prevent pattern recognition
+
+EXPLANATION METHODOLOGY (SHUFFLE-PROOF):
+- NEVER reference answers by letter (A, B, C, D) or position — the simulator shuffles answer order
+- Always reference by service name, architectural pattern, or concept (e.g., "The Centralized Tooling Pattern using CodePipeline...", "The Jenkins-based approach fails because...")
+- Name the architectural pattern behind the correct answer (e.g., "Policy as Code", "Event-Driven Architecture", "Centralized Tooling Account Pattern")
+- For each incorrect option, state the SPECIFIC dimension where it is sub-optimal`;
+
             const prompt = `
-                Eres un instructor experto en la certificación "${exam.name}" con muchos años de experiencia realizando simuladores de exámenes para esta certificación "${exam.name}".
-                Me vas a ayudar a generar preguntas tipo examen para un simulador, enfocado para alumnos que estudiando este simulador pasaran el examen al primer intento.
-                
-                REQUISITOS DE LA PREGUNTA:
-                - Tomando en cuenta el examen real las preguntas son: Complejas, explicando escenarios de empresas y con algunos distractores incluidos en las preguntas.
-                - Las respuestas deben ser muy parecidas entre sí, pero con pequeñas modificaciones para confundir al lector.
-                - Tipo de pregunta: "${type}".
-                - Dominio: "${domain.name}".
-                - Dificultad: "${difficulty}" (Debes de tomar en cuenta la dificultad seleccionada para realizar la pregunta).
-                ${type === 'multi_select' ? '- Se incluyen preguntas en donde se pueden seleccionar de 2 a 3 respuestas. Debes configurar la pregunta para que se deban seleccionar exactamente entre 2 y 3 respuestas correctas.' : '- Selección Única: Solo una de las opciones es correcta.'}
+${systemContext}
 
-                IMPORTANT: The response MUST be generated entirely in the following language: ${language}.
-                
-                The response MUST be a valid JSON object with the following structure:
-                {
-                    "question_text": "Texto de la pregunta (basado en el escenario complejo)",
-                    "options": [
-                        {"id": "A", "text": "Texto de la opción A"},
-                        {"id": "B", "text": "Texto de la opción B"},
-                        {"id": "C", "text": "Texto de la opción C"},
-                        {"id": "D", "text": "Texto de la opción D"}
-                    ],
-                    "correct_ids": ["A", "C"], // Para multi_select (2-3), o ["B"] para single_select
-                    "explanation": "Resumen general de por qué la solución es correcta.",
-                    "why_correct": "Explicación específica de por qué las opciones seleccionadas son las correctas.",
-                    "why_incorrect": [
-                        "Explicación de por qué la opción A no es correcta (si aplica)",
-                        "Explicación de por qué la opción B no es correcta (si aplica)",
-                        "Explicación de por qué la opción C no es correcta (si aplica)",
-                        "Explicación de por qué la opción D no es correcta (si aplica)"
-                    ],
-                    "official_link": "Enlace a la documentación oficial de referencia"
-                }
+QUESTION GENERATION TASK:
+- Domain: "${domain.name}"
+- Difficulty: "${difficulty}" — ${difficultyCtx}
+- Type: "${type}"
+- Response language for question/explanation: ${language}
+- Options language: ALWAYS English
 
-                Strictly return ONLY the JSON object. No preamble or post-amble.
+SCENARIO REQUIREMENTS:
+1. Write a realistic enterprise scenario (80-150 words) with specific business constraints (compliance, cost, availability, scale, governance).
+2. Include organizational context: multi-account structures, cross-region requirements, regulatory constraints, or operational scale that forces architectural decisions.
+3. The scenario must require the candidate to evaluate TRADE-OFFS between valid approaches, not just identify the "right service."
+
+DISTRACTOR QUALITY (CRITICAL):
+- Every incorrect option MUST be a technically valid approach that a junior professional might choose.
+- Distractors should fail on ONE specific dimension: operational overhead, cost, compliance gap, scalability limit, or governance weakness.
+- NEVER include obviously wrong options like "manually configure" or "use a single Lambda for everything."
+- Each option should be 1-2 sentences describing a complete architectural approach with specific service names.
+
+EXPLANATION RULES:
+- NEVER reference options by letter (A, B, C, D). Always reference by service/concept name.
+- Explain the architectural PATTERN behind the correct answer (e.g., "Centralized Tooling Pattern", "Policy as Code", "Event-Driven Architecture").
+- For each incorrect option, explain the SPECIFIC dimension where it fails.
+- The explanation must be self-contained and educational.
+
+${type === 'multi_select'
+    ? 'MULTI-SELECT: Exactly 2 or 3 options are correct. The question MUST explicitly state "Select TWO" or "Select THREE".'
+    : 'SINGLE-SELECT: Exactly ONE option is correct.'}
+
+Return ONLY valid JSON:
+{
+    "question_text": "Enterprise scenario with organizational context, business constraints, and specific technical requirements (80-150 words, in ${language})",
+    "options": [
+        {"id": "A", "text": "Complete architectural approach with specific services, patterns, and implementation details (2-3 sentences in English)"},
+        {"id": "B", "text": "Plausible alternative approach — technically valid but sub-optimal on one specific dimension (2-3 sentences in English)"},
+        {"id": "C", "text": "Another valid approach that introduces unnecessary operational overhead or misses a key requirement (2-3 sentences in English)"},
+        {"id": "D", "text": "Approach that uses an anti-pattern or violates a core principle of the ${role} discipline (2-3 sentences in English)"}
+    ],
+    "correct_ids": ${type === 'multi_select' ? '["A", "C"]' : '["B"]'},
+    "explanation": "Architectural deep dive (200-300 words, in ${language}). Name the architectural pattern. Explain WHY the correct approach is optimal. For each incorrect approach, state the specific service/concept name and the dimension where it fails. Never use letters A/B/C/D.",
+    "why_correct": "Name the architectural pattern and explain why it is the optimal solution for this specific scenario (in ${language}).",
+    "why_incorrect": [
+        "Why [specific service/approach by name] fails on [named dimension: operational overhead / cost / compliance / scalability / governance] (in ${language})",
+        "Why [specific service/approach by name] fails on [named dimension] (in ${language})",
+        "Why [specific service/approach by name] fails on [named dimension] (in ${language})"
+    ],
+    "official_link": "https://docs.relevant-provider.com/path"
+}
+
+Strictly return ONLY the JSON. No preamble, no markdown.
             `;
 
             const command = new InvokeModelCommand({
@@ -69,19 +119,36 @@ export class SolverAgent {
                 accept: "application/json",
                 body: JSON.stringify({
                     anthropic_version: "bedrock-2023-05-31",
-                    max_tokens: 1500,
+                    max_tokens: 3500,
                     messages: [
                         { role: "user", content: prompt }
                     ],
-                    temperature: 0,
+                    temperature: 0.3,
                 }),
             });
 
-            const response = await this.client.send(command);
+            const client = await createBedrockClient();
+            const response = await client.send(command);
             const responseBody = JSON.parse(new TextDecoder().decode(response.body));
             const rawText = responseBody.content[0].text;
 
             const aiGenerated = robustParseJson<any>(rawText);
+
+            // Validar que correct_ids exista y referencie opciones válidas
+            const optionIds = (aiGenerated.options || []).map((o: any) => o.id);
+            const validCorrectIds = (aiGenerated.correct_ids || []).filter((id: string) => optionIds.includes(id));
+
+            if (validCorrectIds.length === 0) {
+                console.warn("Solver: correct_ids inválidos, usando primera opción como fallback");
+                aiGenerated.correct_ids = optionIds.slice(0, 1);
+            } else {
+                aiGenerated.correct_ids = validCorrectIds;
+            }
+
+            // Para multi_select, asegurar al menos 2 correctas
+            if (type === 'multi_select' && aiGenerated.correct_ids.length < 2) {
+                aiGenerated.correct_ids = optionIds.slice(0, 2);
+            }
 
             const question: Question = {
                 id: `q-${Math.random().toString(36).substr(2, 9)}`,

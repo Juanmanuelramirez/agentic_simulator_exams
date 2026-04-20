@@ -1,15 +1,17 @@
 import React, { useState } from 'react';
 import { useAuth } from './AuthContext';
 import { useLanguage } from './LanguageContext';
-import { Mail, ShieldCheck, Lock, CheckCircle } from 'lucide-react';
+import { Mail, ShieldCheck, Lock, CheckCircle, KeyRound } from 'lucide-react';
 
 const LoginView: React.FC = () => {
     const { loginWithGoogle, loginWithAmazon, signIn, signUp, confirmSignUp, resendCode } = useAuth();
     const { t } = useLanguage();
 
-    const [mode, setMode] = useState<'login' | 'register' | 'confirm'>('login');
+    const [mode, setMode] = useState<'login' | 'register' | 'confirm' | 'new_password'>('login');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    const [newPassword, setNewPassword] = useState('');
+    const [newPasswordConfirm, setNewPasswordConfirm] = useState('');
     const [code, setCode] = useState('');
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
@@ -24,10 +26,48 @@ const LoginView: React.FC = () => {
                 setMode('confirm');
                 setError('Tu cuenta aún no está confirmada. Por favor ingresa el código.');
             } else if (nextStep.signInStep === 'NEW_PASSWORD_REQUIRED') {
-                setError('Se requiere una nueva contraseña. Por favor contacta al administrador.');
+                setMode('new_password');
             }
         } catch (err: any) {
             setError(err.message || 'Error al iniciar sesión');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleNewPassword = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setError('');
+        if (newPassword !== newPasswordConfirm) {
+            setError(t('passwordsDontMatch'));
+            return;
+        }
+        if (newPassword.length < 8) {
+            setError(t('passwordMinLength'));
+            return;
+        }
+        if (!/[A-Z]/.test(newPassword)) {
+            setError(t('passwordNeedsUppercase'));
+            return;
+        }
+        if (!/[a-z]/.test(newPassword)) {
+            setError(t('passwordNeedsLowercase'));
+            return;
+        }
+        if (!/[0-9]/.test(newPassword)) {
+            setError(t('passwordNeedsNumber'));
+            return;
+        }
+        setLoading(true);
+        try {
+            const { confirmSignIn } = await import('aws-amplify/auth');
+            const { nextStep } = await confirmSignIn({ challengeResponse: newPassword });
+            if (nextStep.signInStep === 'DONE') {
+                // Recargar para que AuthContext detecte la sesión activa
+                window.location.reload();
+            }
+        } catch (err: any) {
+            setError(err.message || 'Error al actualizar la contraseña');
         } finally {
             setLoading(false);
         }
@@ -97,15 +137,49 @@ const LoginView: React.FC = () => {
                     <p className="text-secondary">Simulador de Certificaciones con IA</p>
                 </div>
 
-                {mode === 'confirm' ? (
+                {mode === 'new_password' ? (
+                    <form onSubmit={handleNewPassword} className="auth-form grid">
+                        <div className="logo-icon" style={{ marginBottom: '0.5rem' }}>
+                            <KeyRound size={32} color="var(--primary)" />
+                        </div>
+                        <h2 className="mb-1">{t('updatePassword')}</h2>
+                        <p className="text-muted mb-2">{t('newPasswordRequired')}</p>
+                        <div className="input-group">
+                            <Lock size={18} />
+                            <input
+                                type="password"
+                                placeholder={t('newPassword')}
+                                value={newPassword}
+                                onChange={(e) => setNewPassword(e.target.value)}
+                                required
+                                minLength={8}
+                            />
+                        </div>
+                        <div className="input-group">
+                            <Lock size={18} />
+                            <input
+                                type="password"
+                                placeholder={t('confirmNewPassword')}
+                                value={newPasswordConfirm}
+                                onChange={(e) => setNewPasswordConfirm(e.target.value)}
+                                required
+                                minLength={8}
+                            />
+                        </div>
+                        {error && <p className="error-text">{error}</p>}
+                        <button type="submit" className="login-btn primary-btn" disabled={loading}>
+                            {loading ? t('updating') : t('setNewPassword')}
+                        </button>
+                    </form>
+                ) : mode === 'confirm' ? (
                     <form onSubmit={handleConfirmSignUp} className="auth-form grid">
-                        <h2 className="mb-1">Confirmar Cuenta</h2>
-                        <p className="text-muted mb-2">Ingresa el código enviado a {email}</p>
+                        <h2 className="mb-1">{t('confirmAccount')}</h2>
+                        <p className="text-muted mb-2">{t('enterCodeSent')} {email}</p>
                         <div className="input-group">
                             <CheckCircle size={18} />
                             <input
                                 type="text"
-                                placeholder="Código de confirmación"
+                                placeholder={t('confirmCode')}
                                 value={code}
                                 onChange={(e) => setCode(e.target.value)}
                                 required
@@ -113,27 +187,27 @@ const LoginView: React.FC = () => {
                         </div>
                         {error && <p className="error-text">{error}</p>}
                         <button type="submit" className="login-btn primary-btn" disabled={loading}>
-                            {loading ? 'Confirmando...' : 'Confirmar Registro'}
+                            {loading ? t('confirming') : t('confirmRegister')}
                         </button>
                         <div className="flex-between mt-1">
                             <button type="button" className="text-btn" onClick={() => setMode('register')}>
-                                Volver al registro
+                                {t('backToRegister')}
                             </button>
                             <button type="button" className="text-btn" onClick={handleResendCode}>
-                                Reenviar código
+                                {t('resendCode')}
                             </button>
                         </div>
                     </form>
                 ) : (
                     <>
                         <form onSubmit={mode === 'login' ? handleEmailSignIn : handleEmailSignUp} className="auth-form grid">
-                            <h2 className="mb-1">{mode === 'login' ? 'Iniciar Sesión' : 'Crear Cuenta'}</h2>
+                            <h2 className="mb-1">{mode === 'login' ? t('signIn') : t('createAccount')}</h2>
 
                             <div className="input-group">
                                 <Mail size={18} />
                                 <input
                                     type="email"
-                                    placeholder="Tu email"
+                                    placeholder={t('yourEmail')}
                                     value={email}
                                     onChange={(e) => setEmail(e.target.value)}
                                     required
@@ -144,7 +218,7 @@ const LoginView: React.FC = () => {
                                 <Lock size={18} />
                                 <input
                                     type="password"
-                                    placeholder="Contraseña"
+                                    placeholder={t('password')}
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}
                                     required
@@ -154,23 +228,23 @@ const LoginView: React.FC = () => {
                             {error && <p className="error-text">{error}</p>}
 
                             <button type="submit" className="login-btn primary-btn" disabled={loading}>
-                                {loading ? 'Cargando...' : mode === 'login' ? 'Entrar' : 'Registrarse'}
+                                {loading ? t('loading') : mode === 'login' ? t('enter') : t('register')}
                             </button>
 
                             <div className="mt-1">
                                 <button type="button" className="text-btn" onClick={() => setMode(mode === 'login' ? 'register' : 'login')}>
-                                    {mode === 'login' ? '¿No tienes cuenta? Registrate' : '¿Ya tienes cuenta? Inicia sesión'}
+                                    {mode === 'login' ? t('noAccount') : t('hasAccount')}
                                 </button>
                                 {mode === 'login' && email && (
                                     <button type="button" className="text-btn d-block mt-05" onClick={() => setMode('confirm')}>
-                                        ¿Tienes un código pendiente? Confirmar cuenta
+                                        {t('pendingCode')}
                                     </button>
                                 )}
                             </div>
                         </form>
 
                         <div className="divider">
-                            <span>o continuar con</span>
+                            <span>{t('orContinueWith')}</span>
                         </div>
 
                         <div className="login-actions grid">
@@ -194,8 +268,8 @@ const LoginView: React.FC = () => {
 
             <style>{`
                 .login-view {
-                    height: 100vh;
-                    background: var(--bg-main);
+                    min-height: 100vh;
+                    background: #0b0e14;
                     background-image: 
                         radial-gradient(circle at 10% 10%, rgba(99, 102, 241, 0.15) 0%, transparent 50%),
                         radial-gradient(circle at 90% 90%, rgba(168, 85, 247, 0.15) 0%, transparent 50%);
@@ -209,11 +283,11 @@ const LoginView: React.FC = () => {
                     max-width: 420px;
                     width: 100%;
                     text-align: center;
-                    background: var(--bg-card);
-                    backdrop-filter: var(--glass-blur);
-                    border: 1px solid var(--border);
+                    background: #161b27;
+                    border: 1px solid rgba(255, 255, 255, 0.1);
                     border-radius: 24px;
-                    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+                    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5);
+                    color: #e2e8f0;
                 }
                 .logo-icon {
                     margin-bottom: 1rem;
@@ -236,20 +310,25 @@ const LoginView: React.FC = () => {
                 .input-group svg {
                     position: absolute;
                     left: 12px;
-                    color: var(--text-muted);
+                    color: rgba(255, 255, 255, 0.4);
                 }
                 .input-group input {
                     width: 100%;
                     padding: 0.85rem 1rem 0.85rem 2.5rem;
-                    background: rgba(255, 255, 255, 0.05);
-                    border: 1px solid var(--glass-border);
+                    background: rgba(255, 255, 255, 0.07);
+                    border: 1px solid rgba(255, 255, 255, 0.12);
                     border-radius: 12px;
-                    color: white;
+                    color: #e2e8f0;
                     outline: none;
                     transition: border-color 0.2s;
+                    font-size: 1rem;
+                }
+                .input-group input::placeholder {
+                    color: rgba(255, 255, 255, 0.35);
                 }
                 .input-group input:focus {
-                    border-color: var(--primary);
+                    border-color: #6366f1;
+                    background: rgba(255, 255, 255, 0.1);
                 }
                 .login-btn {
                     display: flex;
@@ -293,9 +372,9 @@ const LoginView: React.FC = () => {
                     line-height: 0.1em;
                 }
                 .divider span {
-                    background: #0B0E14;
+                    background: #161b27;
                     padding: 0 10px;
-                    color: var(--text-secondary);
+                    color: rgba(255, 255, 255, 0.4);
                     font-size: 0.8rem;
                 }
                 .login-actions {

@@ -1,6 +1,7 @@
 import React from 'react';
 import type { Question } from '../types';
 import { CheckCircle, XCircle, Info } from 'lucide-react';
+import { useLanguage } from './LanguageContext';
 
 interface QuestionCardProps {
   question: Question;
@@ -20,6 +21,7 @@ const QuestionCard: React.FC<QuestionCardProps> = ({
   onToggleReview
 }) => {
   const [localSelected, setLocalSelected] = React.useState<string[]>(userSelectedIds);
+  const { t } = useLanguage();
 
   // Reset selection when the question changes
   React.useEffect(() => {
@@ -78,7 +80,9 @@ const QuestionCard: React.FC<QuestionCardProps> = ({
       </div>
 
       <div className="question-instruction mb-2">
-        {question.type === 'single_select' ? 'SELECCIONA 1 OPCIÓN' : `SELECCIONA ${question.correct_ids.length} OPCIONES`}
+        {question.type === 'single_select'
+          ? `📝 ${t('selectOne')}`
+          : `📝 ${t('selectMultiple', { n: question.correct_ids.length })}`}
       </div>
 
       <div className="options-container v-stack">
@@ -114,16 +118,33 @@ const QuestionCard: React.FC<QuestionCardProps> = ({
         <div className="official-explanation mt-3 animate-fade-in">
           <div className="explanation-header mb-1 flex items-center gap-2">
             <Info size={20} className="text-primary" />
-            <h3 className="m-0">Explicación Oficial</h3>
+            <h3 className="m-0">{t('officialExplanation')}</h3>
           </div>
           <p className="explanation-summary mb-2">{question.explanation}</p>
+          {question.why_correct && (
+            <div className="why-correct-box mb-2">
+              <strong style={{ color: '#059669' }}>✅ {t('whyCorrect')}:</strong>
+              <p style={{ margin: '0.25rem 0 0', lineHeight: 1.6, color: '#475569' }}>{question.why_correct}</p>
+            </div>
+          )}
+          {question.why_incorrect && question.why_incorrect.length > 0 && (
+            <div className="why-incorrect-box">
+              <strong style={{ color: '#dc2626' }}>❌ {t('whyIncorrect')}:</strong>
+              <ul style={{ margin: '0.25rem 0 0', paddingLeft: '1.25rem', lineHeight: 1.6, color: '#475569' }}>
+                {question.why_incorrect.map((reason, i) => (
+                  <li key={i} style={{ marginBottom: '0.25rem' }}>{reason}</li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
       )}
 
       <style>{`
                 .question-card { width: 100%; max-width: 900px; margin: 0 auto; padding: 2rem 0; }
                 .question-text { font-size: 1.5rem; font-weight: 700; line-height: 1.4; color: #1e293b; margin: 0; flex: 1; }
-                .question-instruction { font-size: 0.75rem; font-weight: 700; color: #94a3b8; letter-spacing: 0.05em; margin-top: 2rem; }
+                .question-instruction { font-size: 0.8125rem; font-weight: 700; letter-spacing: 0.03em; margin-top: 2rem; padding: 0.5rem 1rem; border-radius: 8px; display: inline-block; }
+                .question-card:has(.question-instruction) .question-instruction { background: #eff6ff; color: #4f46e5; border: 1px solid rgba(79, 70, 229, 0.15); }
                 
                 .options-container.v-stack { display: flex; flex-direction: column; gap: 0.75rem; margin-top: 1rem; }
                 

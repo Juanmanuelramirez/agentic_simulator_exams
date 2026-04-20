@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import type { UserProfile, Exam, ExamAttempt } from '../types';
 import { Users, PlusCircle, Activity, Search, X, Loader2, Trash2, Info, Zap, BookOpen } from 'lucide-react';
 import { librarian } from '../agents/librarian';
+import { searchLocalCatalog } from '../data/certifications-catalog';
 
 interface AdminDashboardProps {
     users: UserProfile[];
@@ -29,6 +30,20 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     const [selectedExam, setSelectedExam] = useState<string | null>(null);
     const [isAdding, setIsAdding] = useState(false);
 
+    // ── Métricas calculadas desde datos reales ────────────────────────────────
+    const totalQuestions = attempts.reduce((sum, a) => sum + (a.questions?.length || 0), 0);
+
+    const avgPassRate = attempts.length > 0
+        ? Math.round(attempts.reduce((sum, a) => sum + (a.score || 0), 0) / attempts.length)
+        : 0;
+
+    // Logs dinámicos basados en intentos recientes
+    const recentLogs = attempts.slice(0, 5).map(a => ({
+        time: new Date(a.end_time || a.start_time).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+        status: (a.score || 0) >= 70 ? 'SUCCESS' : 'INVOKE',
+        msg: `(SolverAI) -> Examen completado: ${a.exam_id} | Score: ${a.score || 0}%`
+    }));
+
     // Sync from props if changed (Sidebar navigation)
     useEffect(() => {
         if (initialView && initialView !== activeView) {
@@ -43,20 +58,28 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
     useEffect(() => {
         const delayDebounceFn = setTimeout(async () => {
-            if (discoveryQuery.length > 2) {
+            if (discoveryQuery.length > 1) {
+                // Primero buscar en catálogo local (instantáneo, sin Bedrock)
+                const localResults = searchLocalCatalog(discoveryQuery);
+                if (localResults.length > 0) {
+                    setDiscoveryResults(localResults);
+                    return;
+                }
+                // Fallback a Bedrock solo si no hay resultados locales
                 setIsSearching(true);
                 try {
                     const results = await librarian.searchCertifications(discoveryQuery);
                     setDiscoveryResults(results);
                 } catch (error) {
                     console.error("Discovery error:", error);
+                    setDiscoveryResults([]);
                 } finally {
                     setIsSearching(false);
                 }
             } else {
                 setDiscoveryResults([]);
             }
-        }, 500);
+        }, 300);
 
         return () => clearTimeout(delayDebounceFn);
     }, [discoveryQuery]);
@@ -96,7 +119,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                 </div>
                                 <div className="stat-data">
                                     <span className="stat-label">Usuarios Activos</span>
-                                    <span className="stat-value">1,248</span>
+                                    <span className="stat-value">{users.length}</span>
                                 </div>
                             </div>
                             <div className="stat-card">
@@ -114,7 +137,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                 </div>
                                 <div className="stat-data">
                                     <span className="stat-label">Preguntas Generadas (Mes)</span>
-                                    <span className="stat-value">45.2K</span>
+                                    <span className="stat-value">{totalQuestions >= 1000 ? `${(totalQuestions / 1000).toFixed(1)}K` : totalQuestions}</span>
                                 </div>
                             </div>
                             <div className="stat-card">
@@ -123,7 +146,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                 </div>
                                 <div className="stat-data">
                                     <span className="stat-label">Tasa Media Aprobación</span>
-                                    <span className="stat-value">68%</span>
+                                    <span className="stat-value">{avgPassRate}%</span>
                                 </div>
                             </div>
                         </div>
@@ -174,27 +197,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                             </td>
                                         </tr>
                                     ))}
-                                    <tr>
-                                        <td>
-                                            <div className="exam-cell">
-                                                <div className="exam-icon-box azure">azure</div>
-                                                <div className="cell-info">
-                                                    <div className="cell-name">Azure Data Fundamentals (DP-900)</div>
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td className="text-secondary">Microsoft</td>
-                                        <td className="text-secondary">En progreso...</td>
-                                        <td>
-                                            <span className="pill pill-warning">Agente Analizando</span>
-                                        </td>
-                                        <td>
-                                            <div className="action-row">
-                                                <button className="action-btn-minimal"><Activity size={16} /></button>
-                                                <button className="action-btn-minimal text-error"><X size={16} /></button>
-                                            </div>
-                                        </td>
-                                    </tr>
+                                    {exams.length === 0 && (
+                                        <tr>
+                                            <td colSpan={5} className="text-secondary" style={{ textAlign: 'center', padding: '2rem' }}>
+                                                No hay certificaciones en el catálogo. Añade una nueva.
+                                            </td>
+                                        </tr>
+                                    )}
                                 </tbody>
                             </table>
                         </div>
@@ -208,17 +217,17 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                 <div className="health-metrics">
                                     <div className="health-item mb-2">
                                         <div className="health-info">
-                                            <span>Precisión de Fact-Checking (Anti-Alucinación)</span>
-                                            <span className="text-success font-bold">99.8%</span>
+                                            <span>Tasa de Aprobación Global</span>
+                                            <span className={`font-bold ${avgPassRate >= 70 ? 'text-success' : 'text-warning'}`}>{avgPassRate}%</span>
                                         </div>
-                                        <div className="progress-bg"><div className="progress-fill success" style={{ width: '99.8%' }}></div></div>
+                                        <div className="progress-bg"><div className="progress-fill success" style={{ width: `${avgPassRate}%` }}></div></div>
                                     </div>
                                     <div className="health-item">
                                         <div className="health-info">
-                                            <span>Latencia Media de Generación (JIT)</span>
-                                            <span className="font-bold">1.2s</span>
+                                            <span>Total Intentos Registrados</span>
+                                            <span className="font-bold">{attempts.length}</span>
                                         </div>
-                                        <div className="progress-bg"><div className="progress-fill primary" style={{ width: '30%' }}></div></div>
+                                        <div className="progress-bg"><div className="progress-fill primary" style={{ width: `${Math.min(attempts.length * 5, 100)}%` }}></div></div>
                                     </div>
                                 </div>
                             </div>
@@ -229,21 +238,17 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                     <h3>Últimos Logs de Agentes</h3>
                                 </div>
                                 <div className="logs-container">
-                                    <div className="log-entry">
-                                        <span className="log-time">[10:42:01]</span>
-                                        <span className="log-status success">SUCCESS</span>
-                                        <span className="log-msg">(Router) -&gt; Solicitud de examen para user_9821</span>
-                                    </div>
-                                    <div className="log-entry">
-                                        <span className="log-time">[10:42:01]</span>
-                                        <span className="log-status invoke">INVOKE</span>
-                                        <span className="log-msg">(SolverAWS) -&gt; Generando pregunta de S3 (Dificultad: Pro)</span>
-                                    </div>
-                                    <div className="log-entry">
-                                        <span className="log-time">[10:42:01]</span>
-                                        <span className="log-status success">SUCCESS</span>
-                                        <span className="log-msg">(SolverAWS) -&gt; Pregunta validada (Consistency: 0.98)</span>
-                                    </div>
+                                    {recentLogs.length === 0 ? (
+                                        <div className="text-secondary text-sm" style={{ padding: '1rem', textAlign: 'center' }}>
+                                            Sin actividad reciente
+                                        </div>
+                                    ) : recentLogs.map((log, i) => (
+                                        <div key={i} className="log-entry">
+                                            <span className="log-time">[{log.time}]</span>
+                                            <span className={`log-status ${log.status === 'SUCCESS' ? 'success' : 'invoke'}`}>{log.status}</span>
+                                            <span className="log-msg">{log.msg}</span>
+                                        </div>
+                                    ))}
                                 </div>
                             </div>
                         </div>
@@ -347,7 +352,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                         </div>
                                         <div className="stat-compact">
                                             <Users size={14} />
-                                            <span>45 Est.</span>
+                                            <span>{attempts.filter(a => a.exam_id === exam.id).length} intentos</span>
                                         </div>
                                     </div>
                                 </div>
@@ -383,7 +388,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                 </div>
                                 <div className="stat-data">
                                     <span className="stat-label">Tasa de Aprobación</span>
-                                    <span className="stat-value">68.5%</span>
+                                    <span className="stat-value">{avgPassRate}%</span>
                                 </div>
                             </div>
                         </div>
@@ -392,20 +397,35 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                             <div className="data-card p-3">
                                 <h3 className="mb-2">Áreas de Mayor Dificultad</h3>
                                 <div className="fail-list">
-                                    <div className="fail-item">
-                                        <div className="fail-info">
-                                            <span className="fail-name">Seguridad y Cumplimiento (AWS)</span>
-                                            <span className="fail-percent">45% error</span>
-                                        </div>
-                                        <div className="progress-bg"><div className="progress-fill" style={{ width: '45%' }}></div></div>
-                                    </div>
-                                    <div className="fail-item mt-2">
-                                        <div className="fail-info">
-                                            <span className="fail-name">Diseño de Arquitecturas Resilientes</span>
-                                            <span className="fail-percent">38% error</span>
-                                        </div>
-                                        <div className="progress-bg"><div className="progress-fill" style={{ width: '38%' }}></div></div>
-                                    </div>
+                                    {(() => {
+                                        const domainErrors: Record<string, { wrong: number; total: number }> = {};
+                                        attempts.forEach(a => {
+                                            a.questions?.forEach(q => {
+                                                if (!q.domain) return;
+                                                if (!domainErrors[q.domain]) domainErrors[q.domain] = { wrong: 0, total: 0 };
+                                                domainErrors[q.domain].total++;
+                                                const correct = q.user_selected_ids?.length === q.correct_ids?.length &&
+                                                    q.user_selected_ids?.every(id => q.correct_ids.includes(id));
+                                                if (!correct) domainErrors[q.domain].wrong++;
+                                            });
+                                        });
+                                        const sorted = Object.entries(domainErrors)
+                                            .map(([name, d]) => ({ name, pct: d.total > 0 ? Math.round((d.wrong / d.total) * 100) : 0 }))
+                                            .sort((a, b) => b.pct - a.pct)
+                                            .slice(0, 5);
+                                        if (sorted.length === 0) return (
+                                            <p className="text-secondary text-sm">Sin datos suficientes aún.</p>
+                                        );
+                                        return sorted.map((d, i) => (
+                                            <div key={i} className={`fail-item ${i > 0 ? 'mt-2' : ''}`}>
+                                                <div className="fail-info">
+                                                    <span className="fail-name">{d.name}</span>
+                                                    <span className="fail-percent">{d.pct}% error</span>
+                                                </div>
+                                                <div className="progress-bg"><div className="progress-fill" style={{ width: `${d.pct}%` }}></div></div>
+                                            </div>
+                                        ));
+                                    })()}
                                 </div>
                             </div>
                         </div>

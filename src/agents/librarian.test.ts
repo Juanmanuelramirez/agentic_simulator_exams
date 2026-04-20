@@ -1,19 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { LibrarianAgent } from './librarian';
-import { bedrockClient } from '../services/aws';
 import { dbService } from '../services/db';
 
-// Mock the AWS Bedrock client
+// Mock del cliente Bedrock async
+const mockSend = vi.fn();
 vi.mock('../services/aws', () => ({
-    bedrockClient: {
-        send: vi.fn()
-    },
+    createBedrockClient: vi.fn().mockResolvedValue({ send: mockSend }),
     AI_MODELS: {
         DEFAULT_FAST: "anthropic.claude-3-5-haiku-20241022-v1:0"
     }
 }));
 
-// Mock the database service
+// Mock del servicio de base de datos
 vi.mock('../services/db', () => ({
     dbService: {
         saveExam: vi.fn()
@@ -54,14 +52,12 @@ describe('LibrarianAgent - Enhanced discoverExam', () => {
                 source: 'official_guide'
             };
 
-            // Mock Bedrock response
-            vi.mocked(bedrockClient.send).mockResolvedValue({
+            mockSend.mockResolvedValue({
                 body: new TextEncoder().encode(JSON.stringify({
                     content: [{ text: JSON.stringify(mockResponse) }]
                 }))
-            } as any);
+            });
 
-            // Mock database save
             vi.mocked(dbService.saveExam).mockResolvedValue(undefined);
 
             const result = await librarian.discoverExam(
@@ -104,11 +100,11 @@ describe('LibrarianAgent - Enhanced discoverExam', () => {
                 source: 'general_knowledge'
             };
 
-            vi.mocked(bedrockClient.send).mockResolvedValue({
+            mockSend.mockResolvedValue({
                 body: new TextEncoder().encode(JSON.stringify({
                     content: [{ text: JSON.stringify(mockResponse) }]
                 }))
-            } as any);
+            });
 
             vi.mocked(dbService.saveExam).mockResolvedValue(undefined);
 
@@ -134,7 +130,6 @@ describe('LibrarianAgent - Enhanced discoverExam', () => {
                     domains: [
                         { name: 'Domain 1', weight: 60 },
                         { name: 'Domain 2', weight: 30 }
-                        // Total: 90, not 100
                     ]
                 },
                 confidence: 'medium',
@@ -146,11 +141,11 @@ describe('LibrarianAgent - Enhanced discoverExam', () => {
                 source: 'general_knowledge'
             };
 
-            vi.mocked(bedrockClient.send).mockResolvedValue({
+            mockSend.mockResolvedValue({
                 body: new TextEncoder().encode(JSON.stringify({
                     content: [{ text: JSON.stringify(mockResponse) }]
                 }))
-            } as any);
+            });
 
             vi.mocked(dbService.saveExam).mockResolvedValue(undefined);
 
@@ -164,12 +159,12 @@ describe('LibrarianAgent - Enhanced discoverExam', () => {
             const mockResponse = {
                 exam: {
                     id: 'test-cert',
-                    name: '',  // Empty name
+                    name: '',
                     provider: 'Test Provider',
                     description: 'A test certification',
                     duration_minutes: 120,
                     total_questions_official: 60,
-                    domains: []  // Empty domains
+                    domains: []
                 },
                 confidence: 'low',
                 validation: {
@@ -180,11 +175,11 @@ describe('LibrarianAgent - Enhanced discoverExam', () => {
                 source: 'general_knowledge'
             };
 
-            vi.mocked(bedrockClient.send).mockResolvedValue({
+            mockSend.mockResolvedValue({
                 body: new TextEncoder().encode(JSON.stringify({
                     content: [{ text: JSON.stringify(mockResponse) }]
                 }))
-            } as any);
+            });
 
             vi.mocked(dbService.saveExam).mockResolvedValue(undefined);
 
@@ -198,7 +193,7 @@ describe('LibrarianAgent - Enhanced discoverExam', () => {
 
     describe('error handling', () => {
         it('should return fallback exam on discovery failure', async () => {
-            vi.mocked(bedrockClient.send).mockRejectedValue(new Error('Bedrock API error'));
+            mockSend.mockRejectedValue(new Error('Bedrock API error'));
             vi.mocked(dbService.saveExam).mockResolvedValue(undefined);
 
             const result = await librarian.discoverExam('Test Certification', 'https://example.com');

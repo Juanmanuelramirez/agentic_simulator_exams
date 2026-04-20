@@ -37,6 +37,16 @@ export interface Exam {
     created_by: string; // admin user id
     created_at: string;
     updated_at: string;
+
+    // Campos dinámicos descubiertos de la guía oficial de la certificación
+    target_role?: string;       // Ej: "DevOps Engineer", "Solutions Architect", "Project Manager"
+    difficulty_context?: {      // Contexto de dificultad específico de esta certificación
+        beginner: string;
+        intermediate: string;
+        advanced: string;
+    };
+    system_prompt?: string;     // Prompt de sistema específico para generar preguntas de esta certificación
+
     usage_stats?: {
         total_attempts: number;
         average_score: number;
@@ -68,11 +78,15 @@ export interface ExamAttempt {
     total_questions_requested: number;
     generation_job_id?: string;
     
+    // Organization scoping
+    org_id?: string;
+    
     start_time: string;
     end_time?: string;
     questions: Question[];
-    status: 'in_progress' | 'completed';
+    status: 'in_progress' | 'completed' | 'paused';
     score?: number;
+    paused_at_index?: number;
 }
 
 export interface UserProfile {
@@ -196,4 +210,32 @@ export interface GenerationJob {
     error?: string;
     created_at: string;
     updated_at: string;
+}
+
+
+// Organization Management Types
+
+export interface OrgMember {
+    user_id: string;
+    email: string;
+    full_name: string;
+    role: 'org_admin' | 'user';
+    description?: string;
+    phone?: string;
+    joined_at: string;
+}
+
+export interface Organization {
+    id: string;
+    name: string;
+    description: string;
+    logo_url?: string;
+    email: string;
+    phone?: string;
+    assigned_exam_ids: string[];
+    is_active: boolean;
+    created_by: string;
+    created_at: string;
+    updated_at: string;
+    members?: OrgMember[];
 }

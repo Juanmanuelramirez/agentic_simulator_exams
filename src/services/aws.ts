@@ -1,38 +1,75 @@
 import { BedrockRuntimeClient } from "@aws-sdk/client-bedrock-runtime";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
+import { fetchAuthSession } from "aws-amplify/auth";
 
 /**
- * AWS Client Factory
- * Standardizes regional configuration for all services.
- * DynamoDB: us-east-2 (Ohio)
- * Bedrock: us-east-1 (N. Virginia)
+ * AWS Client Factory - Credenciales temporales via Cognito Identity Pool
+ *
+ * NO se usan Access Keys estáticas. Las credenciales son obtenidas
+ * automáticamente por Amplify desde Cognito Identity Pool (STS AssumeRole).
+ * Cada sesión de usuario autenticado recibe credenciales temporales con
+ * permisos mínimos definidos en el rol IAM del Identity Pool.
  */
 
-const CREDENTIALS = {
-    accessKeyId: import.meta.env.VITE_AWS_ACCESS_KEY_ID || 'dummy',
-    secretAccessKey: import.meta.env.VITE_AWS_SECRET_ACCESS_KEY || 'dummy',
-};
-
 // Bedrock Model IDs
+// Claude 3 Haiku - disponible sin suscripción adicional en us-east-1
 export const AI_MODELS = {
     CLAUDE_3_HAIKU: "anthropic.claude-3-haiku-20240307-v1:0",
-    CLAUDE_3_5_HAIKU: "anthropic.claude-3-5-haiku-20241022-v1:0",
-    DEFAULT_FAST: "anthropic.claude-3-5-haiku-20241022-v1:0"
+    CLAUDE_HAIKU_4_5: "anthropic.claude-3-haiku-20240307-v1:0",
+    DEFAULT_FAST: "anthropic.claude-3-haiku-20240307-v1:0"
 };
 
-// Bedrock Client (Hardcoded to us-east-1 for Claude 3 Haiku availability)
-export const bedrockClient = new BedrockRuntimeClient({
-    region: 'us-east-1',
-    credentials: CREDENTIALS
-});
+/**
+ * Obtiene credenciales temporales de la sesión Cognito activa.
+ * Amplify las renueva automáticamente antes de que expiren.
+ */
+async function getSessionCredentials() {
+    const session = await fetchAuthSession();
+    const creds = session.credentials;
+    if (!creds) {
+        throw new Error("No hay sesión activa. El usuario debe estar autenticado.");
+    }
+    return {
+        accessKeyId: creds.accessKeyId,
+        secretAccessKey: creds.secretAccessKey,
+        sessionToken: creds.sessionToken,
+    };
+}
 
-// DynamoDB Client (Uses us-east-2 as defined in infrastructure)
-export const dbClient = new DynamoDBClient({
-    region: import.meta.env.VITE_AWS_REGION || 'us-east-2',
-    credentials: CREDENTIALS
-});
+/**
+ * Crea un cliente Bedrock con credenciales temporales de la sesión actual.
+ * Bedrock requiere us-east-1 para disponibilidad de Claude 3.
+ */
+export async function createBedrockClient(): Promise<BedrockRuntimeClient> {
+    const credentials = await getSessionCredentials();
+    return new BedrockRuntimeClient({
+        region: 'us-east-1',
+        credentials,
+    });
+}
 
-export const docClient = DynamoDBDocumentClient.from(dbClient, {
-    marshallOptions: { removeUndefinedValues: true }
-});
+/**
+ * Crea un cliente DynamoDB con credenciales temporales de la sesión actual.
+ */
+export async function createDynamoDBClient(): Promise<DynamoDBDocumentClient> {
+    const credentials = await getSessionCredentials();
+    const region = import.meta.env.VITE_AWS_REGION || 'us-east-1';
+    const client = new DynamoDBClient({ region, credentials });
+    return DynamoDBDocumentClient.from(client, {
+        marshallOptions: { removeUndefinedValues: true },
+    });
+}
+
+/**
+ * Verifica si hay una sesión activa con credenciales válidas.
+ * Usado por dbService.hasValidCredentials()
+ */
+export async function hasActiveSession(): Promise<boolean> {
+    try {
+        const session = await fetchAuthSession();
+        return !!session.credentials?.accessKeyId;
+    } catch {
+        return false;
+    }
+}

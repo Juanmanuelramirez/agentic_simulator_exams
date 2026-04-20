@@ -1,45 +1,36 @@
 import React, { createContext, useContext, useState } from 'react';
 import type { ReactNode } from 'react';
+import { translations, LANGUAGES } from '../i18n/translations';
 
 interface LanguageContextType {
     language: string;
     setLanguage: (lang: string) => void;
-    t: (text: string) => string;
+    t: (key: string, params?: Record<string, string | number>) => string;
 }
 
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
 
-// Static dictionary for common UI strings as requested "automatic" capabilities 
-// would require heavy infra for an MVP. We'll use this for UI and Bedrock for content.
-const staticTranslations: Record<string, Record<string, string>> = {
-    'es': {
-        'welcome': 'Bienvenido',
-        'streak': 'días de racha',
-        'start': 'Iniciar',
-        'history': 'Historial',
-        'study_guide': 'Guía de Estudio'
-    },
-    'en': {
-        'welcome': 'Welcome',
-        'streak': 'day streak',
-        'start': 'Start',
-        'history': 'History',
-        'study_guide': 'Study Guide'
-    }
-};
-
 export const LanguageProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     const [language, setLanguageState] = useState(() => {
+        const saved = localStorage.getItem('app-language');
+        if (saved && translations[saved]) return saved;
         const browserLang = navigator.language.split('-')[0];
-        return browserLang === 'es' ? 'es' : 'en'; // Default to en if not es for MVP
+        return translations[browserLang] ? browserLang : 'en';
     });
 
     const setLanguage = (lang: string) => {
         setLanguageState(lang);
+        localStorage.setItem('app-language', lang);
     };
 
-    const t = (key: string) => {
-        return staticTranslations[language]?.[key] || key;
+    const t = (key: string, params?: Record<string, string | number>) => {
+        let text = translations[language]?.[key] || translations['en']?.[key] || key;
+        if (params) {
+            Object.entries(params).forEach(([k, v]) => {
+                text = text.replace(`{${k}}`, String(v));
+            });
+        }
+        return text;
     };
 
     return (
@@ -48,6 +39,8 @@ export const LanguageProvider: React.FC<{ children: ReactNode }> = ({ children }
         </LanguageContext.Provider>
     );
 };
+
+export { LANGUAGES };
 
 /* eslint-disable react-refresh/only-export-components */
 export const useLanguage = () => {

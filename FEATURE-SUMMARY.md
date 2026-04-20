@@ -1,12 +1,27 @@
-# Enhanced Question Generation System - Feature Summary
+# Agentic LMS - Feature Summary
 
 ## 🎯 Overview
 
-This feature enhances the Agentic LMS platform with flexible exam generation, progressive loading, and admin management capabilities powered by AWS Bedrock.
+Agentic LMS is an intelligent exam preparation platform powered by AWS Bedrock with multi-tenant organization management, flexible exam generation, progressive loading, and admin management capabilities.
 
 ## ✨ Key Features
 
-### 1. Flexible Exam Lengths
+### 1. Multi-Tenant Organization Management
+Super Admins manage organizations with scoped exam access:
+- **Organization CRUD**: Create, edit, deactivate organizations
+- **Exam Assignment**: Assign specific exams to each organization
+- **User Invitation**: Invite Org Admins and Students via Cognito (temporary password + email)
+- **Role Hierarchy**: Super Admin → Organization Admin → Student
+- **Scoped Access**: Students and Org Admins see only their organization's assigned exams
+- **Backward Compatibility**: Users without an organization see all active exams
+- **i18n**: Full support in Spanish, English, Portuguese, and French
+
+### 2. Google Social Login
+- Integrated via Cognito Hosted UI
+- OAuth 2.0 flow with automatic attribute mapping
+- Configured as identity provider in the User Pool
+
+### 3. Flexible Exam Lengths
 Students can choose their preferred exam length:
 - **50%** - Half the official exam (e.g., 33 questions for 65-question exam)
 - **75%** - Three-quarters length (e.g., 49 questions)
@@ -17,21 +32,21 @@ Each option shows:
 - Estimated duration
 - Maintains proportional domain distribution
 
-### 2. Progressive Question Loading
+### 4. Progressive Question Loading
 Questions generate in blocks for better UX:
 - **First Block**: 10 questions generate immediately (~30 seconds)
 - **Remaining Questions**: Generate in background while student takes exam
 - **Spinner with Progress**: Real-time feedback with ETA
 - **Start Faster**: Begin exam as soon as first block is ready
 
-### 3. Admin Exam Management
+### 5. Admin Exam Management
 Administrators can:
 - **Add New Exams**: Use AI to discover certification blueprints
 - **Manage Catalog**: Edit, activate, or deactivate exams
 - **View Statistics**: See usage stats and average scores
 - **Monitor Performance**: Track student activity across exams
 
-### 4. AI-Powered Exam Discovery
+### 6. AI-Powered Exam Discovery
 Bedrock Librarian Agent automatically:
 - Searches for official certification guides
 - Extracts exam blueprint (domains, weights, duration)
@@ -161,10 +176,19 @@ Bedrock Librarian Agent automatically:
 ## 🔧 Implementation Details
 
 ### New Components
-1. **ExamLengthSelector** - Student selects exam percentage
-2. **QuestionGenerationSpinner** - Shows real-time progress
-3. **AdminExamForm** - Add new exams with AI discovery
-4. **AdminExamManagement** - Manage exam catalog
+1. **OrgManagement** - Organization CRUD (Super Admin)
+2. **OrgAdminDashboard** - Organization Admin dashboard with filtered exams
+3. **OrgExamAssignment** - Assign/unassign exams to organizations
+4. **InviteUserModal** - Invite org_admin or student via Cognito
+5. **StudentList** - Student list with search within an organization
+6. **ExamLengthSelector** - Student selects exam percentage
+7. **QuestionGenerationSpinner** - Shows real-time progress
+8. **AdminExamForm** - Add new exams with AI discovery
+9. **AdminExamManagement** - Manage exam catalog
+
+### New Services
+1. **organizationService.ts** - Organization CRUD, exam assignment, member management
+2. **invitationService.ts** - Cognito AdminCreateUser for user invitations
 
 ### New Functions
 1. **calculateQuestionCount()** - Calculate questions from percentage
@@ -175,8 +199,9 @@ Bedrock Librarian Agent automatically:
 
 ### Database Updates
 1. **Exam Table**: Added official_guide_url, is_active, created_by, timestamps
-2. **ExamAttempt Table**: Added exam_length_percentage, total_questions_requested
-3. **GenerationJob Table**: New table for tracking background jobs
+2. **ExamAttempt Table**: Added exam_length_percentage, total_questions_requested, org_id
+3. **Organizations Table**: New table for multi-tenant organization management (id, name, members, assigned_exam_ids)
+4. **Cognito**: Added custom:org_id attribute, Google identity provider, AdminCreateUser permissions
 
 ## 📝 Documentation Files
 
@@ -185,8 +210,9 @@ Bedrock Librarian Agent automatically:
 - **design.md** - Technical design, algorithms, interfaces
 - **tasks.md** - Implementation tasks with estimates
 
-### Location
-All spec files are in: `.kiro/specs/bedrock-75-questions-generation/`
+### Locations
+- Question Generation: `.kiro/specs/bedrock-75-questions-generation/`
+- Organization Management: `.kiro/specs/organization-management/`
 
 ## 🚀 Getting Started
 

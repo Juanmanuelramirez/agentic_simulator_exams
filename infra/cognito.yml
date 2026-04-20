@@ -1,0 +1,206 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Cognito User Pool + Identity Pool para Agentic Exam Simulator'
+
+Parameters:
+  AppName:
+    Type: String
+    Default: agentic-exam-simulator
+  AdminEmail:
+    Type: String
+    Description: Email del primer administrador del sistema
+  CallbackUrl:
+    Type: String
+    Description: URL de callback post-login (CloudFront URL o localhost para dev)
+    Default: http://localhost:5173
+
+Resources:
+
+  # ── User Pool ──────────────────────────────────────────────────────────────
+  UserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: !Sub '${AppName}-users'
+      UsernameAttributes:
+        - email
+      AutoVerifiedAttributes:
+        - email
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireUppercase: true
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: false
+      Schema:
+        - Name: email
+          AttributeDataType: String
+          Required: true
+          Mutable: true
+        - Name: role
+          AttributeDataType: String
+          Required: false
+          Mutable: true
+          StringAttributeConstraints:
+            MinLength: '1'
+            MaxLength: '20'
+        - Name: org_id
+          AttributeDataType: String
+          Required: false
+          Mutable: true
+          StringAttributeConstraints:
+            MinLength: '0'
+            MaxLength: '36'
+      AdminCreateUserConfig:
+        AllowAdminCreateUserOnly: false
+      UserPoolTags:
+        Project: AgenticSimulator
+
+  # ── App Client (sin secret para SPA) ──────────────────────────────────────
+  UserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      ClientName: !Sub '${AppName}-web-client'
+      UserPoolId: !Ref UserPool
+      GenerateSecret: false
+      ExplicitAuthFlows:
+        - ALLOW_USER_PASSWORD_AUTH
+        - ALLOW_USER_SRP_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+      SupportedIdentityProviders:
+        - COGNITO
+        - Google
+      CallbackURLs:
+        - !Ref CallbackUrl
+      LogoutURLs:
+        - !Ref CallbackUrl
+      AllowedOAuthFlows:
+        - code
+      AllowedOAuthScopes:
+        - email
+        - openid
+        - profile
+      AllowedOAuthFlowsUserPoolClient: true
+      ReadAttributes:
+        - email
+        - custom:role
+        - custom:org_id
+      WriteAttributes:
+        - email
+        - custom:org_id
+
+  # ── Dominio Cognito (hosted UI gratuita) ───────────────────────────────────
+  UserPoolDomain:
+    Type: AWS::Cognito::UserPoolDomain
+    Properties:
+      Domain: !Sub '${AppName}-auth'
+      UserPoolId: !Ref UserPool
+
+  # ── Identity Pool (credenciales temporales STS para el frontend) ───────────
+  IdentityPool:
+    Type: AWS::Cognito::IdentityPool
+    Properties:
+      IdentityPoolName: !Sub '${AppName}-identity'
+      AllowUnauthenticatedIdentities: false
+      CognitoIdentityProviders:
+        - ClientId: !Ref UserPoolClient
+          ProviderName: !Sub 'cognito-idp.${AWS::Region}.amazonaws.com/${UserPool}'
+
+  # ── Rol IAM para usuarios autenticados ────────────────────────────────────
+  AuthenticatedRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${AppName}-authenticated-role'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: cognito-identity.amazonaws.com
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                'cognito-identity.amazonaws.com:aud': !Ref IdentityPool
+              ForAnyValue:StringLike:
+                'cognito-identity.amazonaws.com:amr': authenticated
+      Policies:
+        - PolicyName: ExamSimulatorAppAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              # DynamoDB - solo tablas del proyecto
+              - Sid: DynamoDBAccess
+                Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                Resource:
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/ExamSimulator-*'
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/ExamSimulator-*/index/*'
+              # Bedrock - modelos de generacion de preguntas
+              - Sid: BedrockAccess
+                Effect: Allow
+                Action:
+                  - bedrock:InvokeModel
+                  - bedrock:InvokeModelWithResponseStream
+                Resource:
+                  - !Sub 'arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-3-haiku*'
+                  - !Sub 'arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-haiku-4-5*'
+                  - !Sub 'arn:aws:bedrock:us-east-1:${AWS::AccountId}:inference-profile/us.anthropic.claude-haiku-4-5*'
+                  - !Sub 'arn:aws:bedrock:us-east-1:${AWS::AccountId}:inference-profile/us.anthropic.claude-3-haiku*'
+              # Translate - traduccion de preguntas
+              - Sid: TranslateAccess
+                Effect: Allow
+                Action:
+                  - translate:TranslateText
+                Resource: '*'
+              # AWS Marketplace - requerido para activar modelos Bedrock
+              - Sid: MarketplaceAccess
+                Effect: Allow
+                Action:
+                  - aws-marketplace:ViewSubscriptions
+                  - aws-marketplace:Subscribe
+                Resource: '*'
+              # Cognito Admin API - para invitar usuarios (org_admin y students)
+              - Sid: CognitoAdminAccess
+                Effect: Allow
+                Action:
+                  - cognito-idp:AdminCreateUser
+                  - cognito-idp:AdminGetUser
+                Resource: !GetAtt UserPool.Arn
+      Tags:
+        - Key: Project
+          Value: AgenticSimulator
+
+  # ── Asignar rol al Identity Pool ───────────────────────────────────────────
+  IdentityPoolRoleAttachment:
+    Type: AWS::Cognito::IdentityPoolRoleAttachment
+    Properties:
+      IdentityPoolId: !Ref IdentityPool
+      Roles:
+        authenticated: !GetAtt AuthenticatedRole.Arn
+
+Outputs:
+  UserPoolId:
+    Value: !Ref UserPool
+    Export:
+      Name: !Sub '${AppName}-UserPoolId'
+  UserPoolClientId:
+    Value: !Ref UserPoolClient
+    Export:
+      Name: !Sub '${AppName}-UserPoolClientId'
+  CognitoDomain:
+    Value: !Sub '${AppName}-auth.auth.${AWS::Region}.amazoncognito.com'
+    Export:
+      Name: !Sub '${AppName}-CognitoDomain'
+  IdentityPoolId:
+    Value: !Ref IdentityPool
+    Export:
+      Name: !Sub '${AppName}-IdentityPoolId'
+  UserPoolArn:
+    Value: !GetAtt UserPool.Arn
+    Export:
+      Name: !Sub '${AppName}-UserPoolArn'

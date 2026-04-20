@@ -21,9 +21,12 @@ Agentic Exam Simulator is a state-of-the-art web application designed to revolut
 ### Key Features
 
 🔐 **Secure Access**
-- **Social Login**: Support for Google and Amazon accounts.
+- **Social Login**: Support for Google accounts via Cognito Hosted UI.
+- **Email/Password**: Standard Cognito authentication with email verification.
+- **Multi-tenant Organizations**: Hierarchical role system (Super Admin → Org Admin → Student).
 - **Session Management**: Persistent sessions and secure logout.
 - **Protected Routes**: Automatic redirection to login for unauthenticated users.
+- **First-login Password Change**: Invited users must change their temporary password on first login.
 
 🤖 **AI Agents**
 - **Librarian Agent**: Discovers official certification blueprints and structures exam domains.
@@ -36,13 +39,36 @@ Agentic Exam Simulator is a state-of-the-art web application designed to revolut
 - **Review Mode**: Go back through past exams to see detailed AI explanations for every question.
 
 🛠️ **Admin Panel**
+- **Organization Management**: Create, edit, and deactivate organizations (multi-tenant).
+- **Exam Assignment**: Assign specific exams to organizations.
+- **User Invitation**: Invite Org Admins and Students via Cognito with temporary passwords.
 - **User Management**: Monitor user activity, access frequency, and general performance.
 - **Simulator Registry**: Add new official certifications instantly using AI discovery.
 - **Global Analytics**: Identify critical technical domains across all users.
 
+🏢 **Organization Admin Panel**
+- **Organization Dashboard**: View assigned exams and organization details.
+- **Student Management**: Invite students, search by name/email, view student list.
+- **Scoped Exam Access**: See only exams assigned to the organization.
+
 ## 🔑 Administration & RBAC
 
 The application uses a custom role-based access control system integrated with AWS Cognito.
+
+### Role Hierarchy
+
+| Role | Cognito `custom:role` | Capabilities |
+|---|---|---|
+| Super Admin | `admin` | Full access: organizations, exams, users, analytics |
+| Organization Admin | `org_admin` | Manage students, view assigned exams within their org |
+| Student | `user` | Take exams assigned to their organization (or all if no org) |
+
+### Cognito Custom Attributes
+
+| Attribute | Description |
+|---|---|
+| `custom:role` | User role: `admin`, `org_admin`, or `user` |
+| `custom:org_id` | UUID of the user's organization (empty for admins and unaffiliated users) |
 
 ### Promoting a User to Admin
 To promote a user to the Administrator role, use the provided bootstrap script:
@@ -91,17 +117,35 @@ For local development, you can bypass the Cognito attribute check by setting:
 src/
 ├── agents/           # AI Core logic
 │   ├── librarian.ts  # Exam discovery agent
-│   └── solver.ts     # Bedrock-integrated question generator
+│   ├── solver.ts     # Bedrock-integrated question generator
+│   └── mentor.ts     # Study guide generation agent
 ├── components/       # UI Components
-│   ├── AdminDashboard.tsx  # Global management view
-│   ├── UserDashboard.tsx   # Learner performance view
-│   ├── SimulatorView.tsx   # Interactive learning mode
-│   ├── RealExamView.tsx    # Evaluation mode
-│   └── ...                 # Specialized sub-components
+│   ├── AdminDashboard.tsx      # Global management view
+│   ├── AdminExamManagement.tsx # Exam CRUD for admins
+│   ├── OrgManagement.tsx       # Organization CRUD (Super Admin)
+│   ├── OrgAdminDashboard.tsx   # Organization Admin dashboard
+│   ├── OrgExamAssignment.tsx   # Assign exams to organizations
+│   ├── InviteUserModal.tsx     # Invite org_admin or student
+│   ├── StudentList.tsx         # Student list with search
+│   ├── UserDashboard.tsx       # Learner performance view
+│   ├── SimulatorView.tsx       # Interactive learning mode
+│   ├── RealExamView.tsx        # Evaluation mode
+│   ├── AuthContext.tsx         # Authentication (role + org_id)
+│   ├── LanguageContext.tsx     # i18n (es, en, pt, fr)
+│   ├── Sidebar.tsx             # Role-conditional navigation
+│   ├── LoginView.tsx           # Login + password change flow
+│   └── ...                     # Specialized sub-components
+├── services/
+│   ├── db.ts                   # DynamoDB service
+│   ├── organizationService.ts  # Organization CRUD + exam assignment
+│   ├── invitationService.ts    # Cognito AdminCreateUser
+│   └── adminService.ts         # Admin operations
+├── i18n/
+│   └── translations.ts         # 4-language translations (es, en, pt, fr)
 ├── types/
-│   └── index.ts      # Core interfaces (Exam, Attempt, Profile, etc.)
-├── App.tsx           # Main router and role management
-└── App.css           # Premium design system tokens
+│   └── index.ts                # Core interfaces (Exam, Organization, OrgMember, etc.)
+├── App.tsx                     # Main router and role-based rendering
+└── App.css                     # Design system tokens
 ```
 
 ## 🎮 How to Use
@@ -198,10 +242,10 @@ If you encounter any issues or have questions:
 The application uses **Amazon DynamoDB** for global persistence of users, exams, questions, and attempts.
 
 #### Data Model
-- **Exams Table**: Stores certification metadata and domain blueprints.
+- **Simulators Table**: Stores certification metadata and domain blueprints.
 - **Questions Table**: Caches AI-generated questions to balance cost and performance.
 - **Attempts Table**: Records user exam results and analytics.
-- **Users Table**: Stores profile metadata and study commitments.
+- **Organizations Table**: Stores organization records, members, and assigned exam IDs (multi-tenant).
 
 #### AWS Configuration
 Ensure your environment variables are configured in `.env.local`:
@@ -434,12 +478,10 @@ VITE_CLOUDFRONT_DOMAIN=https://your-cloudfront-domain.cloudfront.net
 ## 🔮 Future Enhancements
 
 - Integration with real certification provider APIs
-- Advanced AI-powered question generation
-- Collaborative study features
+- Login with Amazon social provider
 - Mobile app development
-- Multi-language support
-- Advanced analytics and insights
+- Advanced analytics and insights per organization
 - Real-time collaboration features
-- Integration with AWS Cognito for user authentication
 - Serverless backend with AWS Lambda
 - Advanced caching strategies with Redis
+- Organization billing and subscription management

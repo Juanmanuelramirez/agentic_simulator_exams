@@ -186,6 +186,19 @@ const ExamResults: React.FC<ExamResultsProps> = ({ questions, onExit, onRetry })
                     gap: 0.25rem;
                     border: 1px solid rgba(239, 68, 68, 0.2);
                 }
+
+                .badge-green {
+                    background: #f0fdf4;
+                    color: #059669;
+                    padding: 0.25rem 0.75rem;
+                    border-radius: 2rem;
+                    font-size: 0.75rem;
+                    font-weight: 600;
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 0.25rem;
+                    border: 1px solid rgba(5, 150, 105, 0.2);
+                }
                 
                 .text-4xl { font-size: 2.25rem; line-height: 2.5rem; }
                 .font-extrabold { font-weight: 800; }

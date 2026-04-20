@@ -15,12 +15,16 @@ import {
     type ConfirmSignUpInput
 } from 'aws-amplify/auth';
 
-// Amplify Configuration (using env variables)
+// Amplify Configuration
+// Los IDs de Cognito vienen de variables de entorno generadas automáticamente
+// por setup-aws-infra.sh. NO se usan Access Keys estáticas: las credenciales
+// de AWS (Bedrock, DynamoDB, Translate) se obtienen via Identity Pool (STS).
 Amplify.configure({
     Auth: {
         Cognito: {
             userPoolId: import.meta.env.VITE_AWS_USER_POOL_ID || 'dummy-pool',
             userPoolClientId: import.meta.env.VITE_AWS_USER_POOL_CLIENT_ID || 'dummy-client',
+            identityPoolId: import.meta.env.VITE_AWS_IDENTITY_POOL_ID || undefined,
             loginWith: {
                 oauth: {
                     domain: import.meta.env.VITE_AWS_COGNITO_DOMAIN || 'dummy-domain.auth.us-east-1.amazoncognito.com',
@@ -38,7 +42,8 @@ interface AuthUser {
     id: string;
     username: string;
     email?: string;
-    role: 'user' | 'admin';
+    role: 'admin' | 'org_admin' | 'user';
+    org_id?: string;
 }
 
 interface AuthContextType {
@@ -61,13 +66,38 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     const checkUser = async () => {
         // DEV BYPASS: Auto-login for UI verification
+        // Switch the commented blocks below to simulate different roles:
         if (import.meta.env.DEV || window.location.hostname === 'localhost') {
+            // --- Super Admin (default) ---
             setUser({
                 id: 'dev-user',
                 username: 'DevAdmin',
-                email: 'juan.ramirez.cofetel@gmail.com',
+                email: 'admin@example.com',
                 role: 'admin'
             });
+            // --- Organization Admin ---
+            // setUser({
+            //     id: 'dev-org-admin',
+            //     username: 'DevOrgAdmin',
+            //     email: 'orgadmin@example.com',
+            //     role: 'org_admin',
+            //     org_id: 'dev-org-001'
+            // });
+            // --- Student (with org) ---
+            // setUser({
+            //     id: 'dev-student',
+            //     username: 'DevStudent',
+            //     email: 'student@example.com',
+            //     role: 'user',
+            //     org_id: 'dev-org-001'
+            // });
+            // --- Student (no org, backward compat) ---
+            // setUser({
+            //     id: 'dev-student-free',
+            //     username: 'DevFreeStudent',
+            //     email: 'free@example.com',
+            //     role: 'user'
+            // });
             setLoading(false);
             return;
         }
@@ -77,14 +107,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             const attributes = await fetchUserAttributes();
 
             const devAdminEmail = import.meta.env.VITE_DEV_ADMIN_EMAIL;
-            const role = (attributes['custom:role'] as 'user' | 'admin') ||
+            const role = (attributes['custom:role'] as 'admin' | 'org_admin' | 'user') ||
                 (attributes.email === devAdminEmail ? 'admin' : 'user');
+            const org_id = attributes['custom:org_id'] || undefined;
 
             setUser({
                 id: currentUser.userId,
                 username: currentUser.username,
                 email: attributes.email,
-                role
+                role,
+                org_id
             });
         } catch (err) {
             setUser(null);

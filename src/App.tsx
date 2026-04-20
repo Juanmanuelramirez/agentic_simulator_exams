@@ -6,23 +6,25 @@ import ExamResults from './components/ExamResults'
 import UserDashboard from './components/UserDashboard'
 import AdminDashboard from './components/AdminDashboard'
 import StudyCommitment from './components/StudyCommitment'
-import ExamLengthSelector from './components/ExamLengthSelector'
-import QuestionGenerationSpinner from './components/QuestionGenerationSpinner'
 import AdminExamManagement from './components/AdminExamManagement'
+import OrgManagement from './components/OrgManagement'
+import OrgAdminDashboard from './components/OrgAdminDashboard'
+import StudentList from './components/StudentList'
 import { librarian } from './agents/librarian'
 import { solver } from './agents/solver'
 import { mentor } from './agents/mentor'
-import type { Exam, Question, ExamAttempt, UserProfile, Difficulty, StudyGuide, GenerationProgress } from './types'
-import { Zap, Award, Target, BookOpen, AlertCircle, ChevronLeft, Loader2 } from 'lucide-react'
+import type { Exam, Question, ExamAttempt, UserProfile, Difficulty, StudyGuide, GenerationProgress, Organization } from './types'
+import { Zap, Award, BookOpen, AlertCircle, ChevronLeft, Loader2 } from 'lucide-react'
 import { useLanguage } from './components/LanguageContext'
 import { useAuth } from './components/AuthContext'
 import LoginView from './components/LoginView'
 import Sidebar from './components/Sidebar'
 
 import { dbService } from './services/db'
+import { getOrganizationById } from './services/organizationService'
 
 function App() {
-  const { language } = useLanguage();
+  const { language, t } = useLanguage();
   const { user, loading, logout } = useAuth();
 
   const [activeExam, setActiveExam] = useState<Exam | null>(null);
@@ -62,7 +64,29 @@ function App() {
       const loadUserHistory = async () => {
         try {
           const history = await dbService.getUserAttempts(user.id);
-          setAttempts(history);
+          // Dedup paused: keep latest per exam, delete old duplicates from DB
+          const pausedByExam = new Map<string, ExamAttempt[]>();
+          const nonPaused: ExamAttempt[] = [];
+          for (const a of history) {
+            if (a.status === 'paused') {
+              const key = a.exam_id;
+              if (!pausedByExam.has(key)) pausedByExam.set(key, []);
+              pausedByExam.get(key)!.push(a);
+            } else {
+              nonPaused.push(a);
+            }
+          }
+          const deduped = [...nonPaused];
+          for (const [, pausedList] of pausedByExam) {
+            // Sort by start_time desc, keep newest
+            pausedList.sort((a, b) => new Date(b.start_time).getTime() - new Date(a.start_time).getTime());
+            deduped.push(pausedList[0]);
+            // Delete older duplicates from DB
+            for (let i = 1; i < pausedList.length; i++) {
+              try { await dbService.deleteAttempt(pausedList[i].id); } catch (_) {}
+            }
+          }
+          setAttempts(deduped);
         } catch (error) {
           console.error("Failed to load history from DynamoDB", error);
         }
@@ -73,14 +97,30 @@ function App() {
 
   const [showCommitment, setShowCommitment] = useState(false);
 
-  // Production Load: All exams come from DynamoDB
-  useEffect(() => {
-    const loadProductionExams = async () => {
-      if (!dbService.hasValidCredentials()) {
-        console.warn("AWS Credentials not configured in .env. Persistence will fail.");
-        return;
-      }
+  // Organization data for org_admin and users with org_id
+  const [userOrganization, setUserOrganization] = useState<Organization | null>(null);
 
+  useEffect(() => {
+    if (!user || !user.org_id) {
+      setUserOrganization(null);
+      return;
+    }
+    const loadOrg = async () => {
+      try {
+        const org = await getOrganizationById(user.org_id!);
+        setUserOrganization(org);
+      } catch (error) {
+        console.error('Failed to load user organization', error);
+      }
+    };
+    loadOrg();
+  }, [user]);
+
+  // Production Load: All exams come from DynamoDB - espera a que el usuario esté autenticado
+  useEffect(() => {
+    if (!user) return; // No cargar hasta tener sesión activa
+
+    const loadProductionExams = async () => {
       try {
         console.log("Loading exams from DynamoDB...");
         const dbExams = await dbService.getExams();
@@ -98,19 +138,30 @@ function App() {
       }
     };
     loadProductionExams();
-  }, []);
+  }, [user]); // Re-ejecutar cuando cambie el usuario (login/logout)
+
+  // Filter exams by organization assignment when user has org_id
+  const filteredExams = (() => {
+    if (user?.org_id && userOrganization) {
+      return exams.filter(e => userOrganization.assigned_exam_ids.includes(e.id));
+    }
+    return exams;
+  })();
 
   const [generatingQuestions, setGeneratingQuestions] = useState(false);
   const [currentQuestions, setCurrentQuestions] = useState<Question[]>([]);
   const [generationProgress, setGenerationProgress] = useState<GenerationProgress | null>(null);
   const [examLengthPercentage, setExamLengthPercentage] = useState<50 | 75 | 100>(100);
+  // Generación en background: total solicitado vs generadas hasta ahora
+  const [bgGenerationTotal, setBgGenerationTotal] = useState<number>(0);
+  const [bgGenerationDone, setBgGenerationDone] = useState<number>(0);
 
   const handleAddExam = async (examName: string) => {
     console.log(`Starting addition of exam: ${examName}`);
     setGeneratingQuestions(true);
     try {
-      if (!dbService.hasValidCredentials()) {
-        throw new Error("AWS_CREDENTIALS_MISSING: Verifica las variables de entorno en .env");
+      if (!(await dbService.hasValidCredentials())) {
+        throw new Error("AWS_CREDENTIALS_MISSING: El usuario debe estar autenticado para generar preguntas.");
       }
 
       const discovery = await librarian.discoverExam(examName);
@@ -145,15 +196,62 @@ function App() {
   };
 
   const [selectedQuestionCount, setSelectedQuestionCount] = useState<number>(75);
+  const FIRST_BLOCK = 5; // preguntas para mostrar el examen inmediatamente
 
   const handleStartExamData = async (exam: Exam, difficulty: Difficulty, mode: 'simulator' | 'real', count?: number) => {
     setGeneratingQuestions(true);
     setGenerationProgress(null);
     setExamMode(mode);
     const questionsToGenerate = count || selectedQuestionCount;
+
     try {
-      const batch = await solver.generateBatch(exam, questionsToGenerate, difficulty, language);
-      setCurrentQuestions(batch);
+      // ── Bloque inicial: 5 preguntas para arrancar rápido ──────────────────
+      const firstBlock: Question[] = [];
+      const initialCount = Math.min(FIRST_BLOCK, questionsToGenerate);
+
+      for (let i = 0; i < initialCount; i++) {
+        const domain = exam.domains[i % exam.domains.length];
+        const q = await solver.generateQuestion(exam, difficulty, language, domain);
+        firstBlock.push(q);
+        setGenerationProgress({
+          current: i + 1,
+          total: questionsToGenerate,
+          currentDomain: domain.name,
+          successCount: firstBlock.length,
+          failureCount: 0,
+          estimatedTimeRemaining: Math.ceil((questionsToGenerate - i - 1) * 4)
+        });
+      }
+
+      // Mostrar el examen con las primeras 5 preguntas
+      setCurrentQuestions(firstBlock);
+      setGeneratingQuestions(false);
+      setGenerationProgress(null);
+
+      // ── Generación en background del resto ────────────────────────────────
+      const remaining = questionsToGenerate - initialCount;
+      if (remaining > 0) {
+        setBgGenerationTotal(questionsToGenerate);
+        setBgGenerationDone(initialCount);
+
+        // No await — corre en background
+        (async () => {
+          for (let i = initialCount; i < questionsToGenerate; i++) {
+            try {
+              const domain = exam.domains[i % exam.domains.length];
+              const q = await solver.generateQuestion(exam, difficulty, language, domain);
+              setCurrentQuestions(prev => [...prev, q]);
+              setBgGenerationDone(i + 1);
+            } catch (err) {
+              console.warn(`Background question ${i + 1} failed, skipping`, err);
+            }
+          }
+          // Generación completa
+          setBgGenerationTotal(0);
+          setBgGenerationDone(0);
+        })();
+      }
+
     } catch (error: any) {
       console.error("Failed to generate questions", error);
       const errorMessage = error.message?.includes('ThrottlingException')
@@ -161,8 +259,8 @@ function App() {
         : `Error al generar las preguntas: ${error.message || 'Error desconocido'}.`;
       alert(errorMessage);
       setExamMode(null);
-    } finally {
       setGeneratingQuestions(false);
+      setGenerationProgress(null);
     }
   };
 
@@ -195,7 +293,8 @@ function App() {
       end_time: new Date().toISOString(),
       questions: finishedQuestions,
       status: 'completed',
-      score
+      score,
+      ...(user?.org_id ? { org_id: user.org_id } : {})
     };
 
     // Global persistence in DynamoDB
@@ -269,13 +368,32 @@ function App() {
       return (
         <div className="app-container flex-center">
           {generationProgress ? (
-            <QuestionGenerationSpinner progress={generationProgress} isFirstBlock />
+            <div className="loading-state card fade-in text-center">
+              <div style={{ marginBottom: '1.5rem' }}>
+                <div style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--primary)' }}>
+                  {generationProgress.current}/{generationProgress.total}
+                </div>
+                <p style={{ color: 'var(--text-secondary)', marginTop: '0.25rem' }}>{t('questionsGenerated')}</p>
+              </div>
+              <div style={{ background: 'rgba(99,102,241,0.1)', borderRadius: '8px', height: '8px', marginBottom: '1rem', overflow: 'hidden' }}>
+                <div style={{
+                  background: 'var(--primary)',
+                  height: '100%',
+                  width: `${(generationProgress.current / generationProgress.total) * 100}%`,
+                  transition: 'width 0.3s ease',
+                  borderRadius: '8px'
+                }} />
+              </div>
+              <p className="text-secondary">{t('domain')}: {generationProgress.currentDomain}</p>
+              {generationProgress.estimatedTimeRemaining > 0 && (
+                <p className="text-secondary small">~{generationProgress.estimatedTimeRemaining}s restantes</p>
+              )}
+            </div>
           ) : (
             <div className="loading-state card fade-in text-center">
               <Loader2 className="animate-spin mb-1" size={48} color="var(--primary)" />
-              <h2>Generando tu simulador...</h2>
-              <p className="text-secondary">El Agente AI (Bedrock) está creando {selectedQuestionCount} preguntas personalizadas para ti.</p>
-              <p className="text-secondary small">Esto garantiza cobertura de todas las áreas de estudio.</p>
+              <h2>{t('generatingSimulator')}</h2>
+              <p className="text-secondary">{t('aiCreating', { n: selectedQuestionCount })}</p>
             </div>
           )}
         </div>
@@ -283,98 +401,79 @@ function App() {
     }
 
     if (!examMode) {
-      const qMin = Math.ceil((activeExam.total_questions_official || 60) * 0.5);
-      const qMid = Math.ceil((activeExam.total_questions_official || 60) * 0.75);
-      const qMax = activeExam.total_questions_official || 60;
+      const qOptions = [
+        { pct: 50 as const, count: Math.ceil((activeExam.total_questions_official || 60) * 0.5), dur: Math.round(activeExam.duration_minutes * 0.5) },
+        { pct: 75 as const, count: Math.ceil((activeExam.total_questions_official || 60) * 0.75), dur: Math.round(activeExam.duration_minutes * 0.75) },
+        { pct: 100 as const, count: activeExam.total_questions_official || 60, dur: activeExam.duration_minutes },
+      ];
 
       return (
         <div className="app-container flex-center">
-          <div className="mode-selection-container fade-in">
-            <div className="selection-header">
-              <button onClick={() => setActiveExam(null)} className="back-btn">
-                <ChevronLeft size={20} />
-              </button>
-              <div className="exam-badge">
-                <BookOpen size={14} />
-                <span>Examen Seleccionado</span>
+          <div style={{ maxWidth: 520, width: '100%', padding: '2rem' }} className="fade-in">
+            <button onClick={() => setActiveExam(null)} style={{ background: '#f1f5f9', border: '1px solid #e2e8f0', color: '#475569', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, marginBottom: '1.25rem', fontWeight: 600, fontSize: '0.875rem', padding: '0.5rem 1rem', borderRadius: 10, transition: 'all 0.2s' }}>
+              <ChevronLeft size={16} /> {t('back')}
+            </button>
+
+            <div style={{ background: 'white', borderRadius: 20, border: '1px solid #e2e8f0', padding: '2rem', boxShadow: '0 4px 20px rgba(0,0,0,0.06)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                <BookOpen size={16} color="var(--primary)" />
+                <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{t('configureSimulator')}</span>
               </div>
-            </div>
+              <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#1e293b', margin: '0.5rem 0 1.5rem' }}>{activeExam.name}</h2>
 
-            <h1 className="exam-title">{activeExam.name}</h1>
-            <p className="exam-subtitle">Configura tu experiencia de aprendizaje para hoy</p>
+              {/* Dificultad */}
+              <label style={{ display: 'block', marginBottom: '1rem' }}>
+                <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: '#64748b', display: 'block', marginBottom: 6 }}>{t('difficultyLevel')}</span>
+                <select
+                  value={activeDifficulty}
+                  onChange={(e) => setActiveDifficulty(e.target.value as Difficulty)}
+                  style={{ width: '100%', padding: '0.625rem 0.75rem', borderRadius: 10, border: '1px solid #e2e8f0', fontSize: '0.9375rem', color: '#1e293b', background: '#f8fafc', cursor: 'pointer' }}
+                >
+                  <option value="beginner">{t('beginner')}</option>
+                  <option value="intermediate">{t('intermediate')}</option>
+                  <option value="advanced">{t('advanced')}</option>
+                </select>
+              </label>
 
-            <div className="setup-grid">
-              <div className="setup-config-column">
-                <div className="difficulty-box">
-                  <div className="box-header">
-                    <Target size={20} color="var(--primary)" />
-                    <h3>Nivel de Dificultad</h3>
-                  </div>
-                  <select
-                    value={activeDifficulty}
-                    onChange={(e) => setActiveDifficulty(e.target.value as Difficulty)}
-                    className="difficulty-select"
-                  >
-                    <option value="beginner">Principiante (Básico)</option>
-                    <option value="intermediate">Intermedio (Estándar)</option>
-                    <option value="advanced">Avanzado (Complejo)</option>
-                  </select>
-                </div>
+              {/* Número de preguntas */}
+              <label style={{ display: 'block', marginBottom: '1.5rem' }}>
+                <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: '#64748b', display: 'block', marginBottom: 6 }}>{t('questionCount')}</span>
+                <select
+                  value={examLengthPercentage}
+                  onChange={(e) => {
+                    const pct = Number(e.target.value) as 50 | 75 | 100;
+                    const opt = qOptions.find(o => o.pct === pct)!;
+                    setExamLengthPercentage(pct);
+                    setSelectedQuestionCount(opt.count);
+                  }}
+                  style={{ width: '100%', padding: '0.625rem 0.75rem', borderRadius: 10, border: '1px solid #e2e8f0', fontSize: '0.9375rem', color: '#1e293b', background: '#f8fafc', cursor: 'pointer' }}
+                >
+                  {qOptions.map(o => (
+                    <option key={o.pct} value={o.pct}>{o.pct}% — {o.count} preguntas · ~{o.dur} min</option>
+                  ))}
+                </select>
+              </label>
 
-                <div className="difficulty-box mt-1">
-                  <div className="box-header">
-                    <Zap size={20} color="var(--secondary)" />
-                    <h3>Número de Preguntas</h3>
-                  </div>
-                  <ExamLengthSelector
-                    exam={activeExam}
-                    onSelect={(pct, count) => {
-                      setExamLengthPercentage(pct);
-                      setSelectedQuestionCount(count);
-                    }}
-                    onStart={() => {/* handled by mode cards below */}}
-                  />
-                </div>
-              </div>
-
-              <div className="mode-options">
-                <div
-                  className="mode-card"
+              {/* Botones de modo */}
+              <div style={{ display: 'flex', gap: '0.75rem' }}>
+                <button
                   onClick={() => handleStartExamData(activeExam, activeDifficulty, 'simulator')}
+                  style={{ flex: 1, padding: '0.75rem', background: 'var(--primary)', color: 'white', border: 'none', borderRadius: 12, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontSize: '0.9375rem', transition: 'all 0.2s' }}
                 >
-                  <div className="mode-icon simulator">
-                    <Zap size={24} />
-                  </div>
-                  <div className="mode-info">
-                    <h3>Modo Simulador</h3>
-                    <p>Feedback inmediato de IA y explicaciones profundas.</p>
-                  </div>
-                  <div className="mode-action">
-                    <span>Empezar</span>
-                  </div>
-                </div>
-
-                <div
-                  className="mode-card"
+                  <Zap size={18} /> Simulador
+                </button>
+                <button
                   onClick={() => handleStartExamData(activeExam, activeDifficulty, 'real')}
+                  style={{ flex: 1, padding: '0.75rem', background: '#1e293b', color: 'white', border: 'none', borderRadius: 12, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontSize: '0.9375rem', transition: 'all 0.2s' }}
                 >
-                  <div className="mode-icon exam">
-                    <Award size={24} />
-                  </div>
-                  <div className="mode-info">
-                    <h3>Modo Examen</h3>
-                    <p>Condiciones reales, tiempo limitado y sin ayudas.</p>
-                  </div>
-                  <div className="mode-action">
-                    <span>Empezar</span>
-                  </div>
-                </div>
+                  <Award size={18} /> Examen Real
+                </button>
               </div>
-            </div>
 
-            <div className="selection-footer">
-              <AlertCircle size={14} />
-              <span>Cubriendo todas las áreas: {activeExam.domains.length} dominios oficiales.</span>
+              <p style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: '1rem', textAlign: 'center' }}>
+                <AlertCircle size={12} style={{ verticalAlign: 'middle', marginRight: 4 }} />
+                {activeExam.domains.length} {t('officialDomains')} · {t('simulatorWithAI')} · {t('examNoHelp')}
+              </p>
             </div>
           </div>
         </div>
@@ -382,15 +481,71 @@ function App() {
     }
 
     return examMode === 'simulator'
-      ? <div className="simulator-fullscreen"><SimulatorView exam={activeExam} initialQuestions={currentQuestions} onExit={() => { setActiveExam(null); setExamMode(null); }} onFinish={handleFinishExam} /></div>
-      : <div className="simulator-fullscreen"><RealExamView exam={activeExam} initialQuestions={currentQuestions} onExit={() => { setActiveExam(null); setExamMode(null); }} onFinish={handleFinishExam} /></div>;
+      ? <div className="simulator-fullscreen"><SimulatorView exam={activeExam} initialQuestions={currentQuestions} onExit={() => { setActiveExam(null); setExamMode(null); }} onFinish={handleFinishExam} onPause={async (qs, idx) => {
+          // Delete any existing paused attempts for this exam first
+          const existingPaused = attempts.filter(a => a.status === 'paused' && a.exam_id === activeExam.id);
+          for (const old of existingPaused) {
+            try { await dbService.deleteAttempt(old.id); } catch (e) { console.error('Failed to delete old paused', e); }
+          }
+          const pausedAttempt: ExamAttempt = {
+            id: `att-paused-${activeExam.id}`,
+            exam_id: activeExam.id,
+            mode: 'simulator',
+            difficulty: activeDifficulty,
+            exam_length_percentage: examLengthPercentage,
+            total_questions_requested: selectedQuestionCount,
+            start_time: new Date().toISOString(),
+            end_time: '',
+            questions: qs,
+            status: 'paused',
+            score: 0,
+            paused_at_index: idx
+          };
+          setBgGenerationTotal(0);
+          setBgGenerationDone(0);
+          // Remove any existing paused attempt for this exam, then add new one
+          setAttempts(prev => [pausedAttempt, ...prev.filter(a => !(a.status === 'paused' && a.exam_id === activeExam.id))]);
+          if (user) {
+            try { await dbService.saveAttempt({ ...pausedAttempt, user_id: user.id }); } catch (e) { console.error('Failed to save paused attempt', e); }
+          }
+          setActiveExam(null);
+          setExamMode(null);
+        }} /></div>
+      : <div className="simulator-fullscreen"><RealExamView exam={activeExam} initialQuestions={currentQuestions} onExit={() => { setActiveExam(null); setExamMode(null); }} onFinish={handleFinishExam} onPause={async (qs, idx) => {
+          const existingPaused2 = attempts.filter(a => a.status === 'paused' && a.exam_id === activeExam.id);
+          for (const old of existingPaused2) {
+            try { await dbService.deleteAttempt(old.id); } catch (e) { console.error('Failed to delete old paused', e); }
+          }
+          const pausedAttempt: ExamAttempt = {
+            id: `att-paused-${activeExam.id}`,
+            exam_id: activeExam.id,
+            mode: 'real',
+            difficulty: activeDifficulty,
+            exam_length_percentage: examLengthPercentage,
+            total_questions_requested: selectedQuestionCount,
+            start_time: new Date().toISOString(),
+            end_time: '',
+            questions: qs,
+            status: 'paused',
+            score: 0,
+            paused_at_index: idx
+          };
+          setBgGenerationTotal(0);
+          setBgGenerationDone(0);
+          setAttempts(prev => [pausedAttempt, ...prev.filter(a => !(a.status === 'paused' && a.exam_id === activeExam.id))]);
+          if (user) {
+            try { await dbService.saveAttempt({ ...pausedAttempt, user_id: user.id }); } catch (e) { console.error('Failed to save paused attempt', e); }
+          }
+          setActiveExam(null);
+          setExamMode(null);
+        }} /></div>;
   }
 
   return (
     <div className="app-container">
       <Sidebar
         user={profile}
-        isAdmin={user.role === 'admin'}
+        role={user.role}
         activeView={dashboardView}
         onViewChange={setDashboardView}
         onLogout={logout}
@@ -398,30 +553,117 @@ function App() {
 
       <main className="main-content">
         {user.role === 'admin' ? (
-          <>
-            <AdminDashboard
-              users={[profile]}
-              exams={exams}
-              attempts={attempts}
-              onAddExam={handleAddExam}
-              onDeleteExam={handleDeleteExam}
-              initialView={dashboardView as any}
+          dashboardView === 'organizations' ? (
+            <OrgManagement />
+          ) : (
+            <>
+              <AdminDashboard
+                users={[profile]}
+                exams={exams}
+                attempts={attempts}
+                onAddExam={handleAddExam}
+                onDeleteExam={handleDeleteExam}
+                initialView={dashboardView as any}
+              />
+              {dashboardView === 'exam-management' && (
+                <div style={{ marginTop: '1.5rem' }}>
+                  <AdminExamManagement adminUserId={user.id} />
+                </div>
+              )}
+            </>
+          )
+        ) : user.role === 'org_admin' ? (
+          dashboardView === 'org-students' && userOrganization ? (
+            <StudentList
+              orgId={userOrganization.id}
+              members={userOrganization.members || []}
+              onMemberAdded={async () => {
+                if (user.org_id) {
+                  try {
+                    const org = await getOrganizationById(user.org_id);
+                    setUserOrganization(org);
+                  } catch (e) {
+                    console.error('Failed to reload organization', e);
+                  }
+                }
+              }}
             />
-            {dashboardView === 'exam-management' && (
-              <div style={{ marginTop: '1.5rem' }}>
-                <AdminExamManagement adminUserId={user.id} />
-              </div>
-            )}
-          </>
+          ) : userOrganization ? (
+            <OrgAdminDashboard
+              exams={filteredExams}
+              organization={userOrganization}
+              onStartExam={(examId) => {
+                const hasPaused = attempts.some(a => a.status === 'paused');
+                if (hasPaused) {
+                  alert(t('hasPausedAlert'));
+                  return;
+                }
+                handleStartExam(examId);
+              }}
+            />
+          ) : (
+            <div className="flex-center" style={{ padding: '2rem' }}>
+              <Loader2 className="animate-spin" size={32} color="var(--primary)" />
+            </div>
+          )
         ) : (
           <UserDashboard
             user={profile}
             attempts={attempts}
-            exams={exams}
+            exams={filteredExams}
             studyGuide={studyGuide}
             isGeneratingGuide={isGeneratingGuide}
-            onStartExam={handleStartExam}
-            onViewDetail={(id) => console.log('View detail', id)}
+            onStartExam={(examId) => {
+              const hasPaused = attempts.some(a => a.status === 'paused');
+              if (hasPaused) {
+                alert(t('hasPausedAlert'));
+                return;
+              }
+              handleStartExam(examId);
+            }}
+            onResumeExam={async (attempt) => {
+              const exam = exams.find(e => e.id === attempt.exam_id);
+              if (!exam) return;
+              setActiveExam(exam);
+              setExamMode(attempt.mode);
+              setActiveDifficulty(attempt.difficulty);
+              setSelectedQuestionCount(attempt.total_questions_requested);
+              const existingQuestions = attempt.questions || [];
+              setCurrentQuestions(existingQuestions);
+              // Remove the paused attempt from local state and DB
+              setAttempts(prev => prev.filter(a => a.id !== attempt.id));
+              if (user) {
+                try { await dbService.deleteAttempt(attempt.id); } catch (e) { console.error('Failed to delete paused attempt', e); }
+              }
+
+              // Continuar generando preguntas faltantes en background
+              const totalNeeded = attempt.total_questions_requested || existingQuestions.length;
+              const remaining = totalNeeded - existingQuestions.length;
+              if (remaining > 0) {
+                setBgGenerationTotal(totalNeeded);
+                setBgGenerationDone(existingQuestions.length);
+                (async () => {
+                  for (let i = existingQuestions.length; i < totalNeeded; i++) {
+                    try {
+                      const domain = exam.domains[i % exam.domains.length];
+                      const q = await solver.generateQuestion(exam, attempt.difficulty, language, domain);
+                      setCurrentQuestions(prev => [...prev, q]);
+                      setBgGenerationDone(i + 1);
+                    } catch (err) {
+                      console.warn(`Resume bg question ${i + 1} failed`, err);
+                    }
+                  }
+                  setBgGenerationTotal(0);
+                  setBgGenerationDone(0);
+                })();
+              }
+            }}
+            onViewDetail={(attemptId) => {
+              const attempt = attempts.find(a => a.id === attemptId);
+              if (attempt && attempt.questions?.length > 0) {
+                setResults(attempt.questions);
+              }
+            }}
             onGenerateGuide={handleGenerateStudyGuide}
             onToggleTask={(taskId) => {
               if (!studyGuide) return;
@@ -440,6 +682,45 @@ function App() {
           onSave={handleSaveCommitment}
           onCancel={() => { setActiveExam(null); setShowCommitment(false); }}
         />
+      )}
+
+      {/* Spinner flotante de generación en background */}
+      {bgGenerationTotal > 0 && (
+        <div style={{
+          position: 'fixed',
+          top: '1rem',
+          right: '1rem',
+          zIndex: 9999,
+          background: 'white',
+          border: '1px solid #e2e8f0',
+          borderRadius: '12px',
+          padding: '0.75rem 1rem',
+          boxShadow: '0 4px 20px rgba(0,0,0,0.12)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.75rem',
+          minWidth: '220px',
+          fontSize: '0.875rem'
+        }}>
+          <Loader2 size={18} color="#6366f1" style={{ animation: 'spin 1s linear infinite', flexShrink: 0 }} />
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 600, color: '#1e1e2d', marginBottom: '4px' }}>
+              Generando preguntas...
+            </div>
+            <div style={{ background: '#f1f5f9', borderRadius: '4px', height: '4px', overflow: 'hidden' }}>
+              <div style={{
+                background: '#6366f1',
+                height: '100%',
+                width: `${(bgGenerationDone / bgGenerationTotal) * 100}%`,
+                transition: 'width 0.3s ease',
+                borderRadius: '4px'
+              }} />
+            </div>
+            <div style={{ color: '#64748b', marginTop: '3px', fontSize: '0.75rem' }}>
+              {bgGenerationDone}/{bgGenerationTotal} preguntas listas
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

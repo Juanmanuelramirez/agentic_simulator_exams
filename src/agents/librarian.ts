@@ -1,5 +1,5 @@
 import { InvokeModelCommand } from "@aws-sdk/client-bedrock-runtime";
-import { bedrockClient, AI_MODELS } from "../services/aws";
+import { createBedrockClient, AI_MODELS } from "../services/aws";
 import { robustParseJson } from "../services/ai-utils";
 import { dbService } from '../services/db';
 import type { Exam, ExamDiscoveryResult } from '../types';
@@ -10,7 +10,6 @@ import type { Exam, ExamDiscoveryResult } from '../types';
  * and managing the certification catalog in the database.
  */
 export class LibrarianAgent {
-    private client = bedrockClient;
 
     /**
      * Uses Bedrock to validate and return a list of certifications based on a search query.
@@ -19,9 +18,10 @@ export class LibrarianAgent {
         console.log(`Librarian: Validating certifications for "${query}"...`);
 
         const prompt = `
-            You are a certification expert. Based on the user search query "${query}", return a list of 3-5 real, currently active technical certifications.
-            Return ONLY a JSON array of strings. No preamble.
-            Example: ["AWS Certified Solutions Architect - Associate", "AWS Certified Developer - Associate"]
+            You are a certification expert. Based on the user search query "${query}", return a list of 3-5 real, currently active technical certifications with their FULL OFFICIAL names.
+            Return ONLY a JSON array of strings with the complete official certification name. No preamble.
+            Example: ["AWS Certified Solutions Architect - Associate (SAA-C03)", "AWS Certified Developer - Associate (DVA-C02)"]
+            IMPORTANT: Use the complete official name including the exam code if available.
         `;
 
         try {
@@ -37,7 +37,8 @@ export class LibrarianAgent {
                 }),
             });
 
-            const response = await this.client.send(command);
+            const client = await createBedrockClient();
+            const response = await client.send(command);
             const responseBody = JSON.parse(new TextDecoder().decode(response.body));
             const rawText = responseBody.content[0].text;
 
@@ -65,58 +66,63 @@ export class LibrarianAgent {
             console.log(`Librarian: Using official guide URL: ${official_guide_url}`);
         }
 
+        const commonExamFields = `
+                    "id": "short-code-id",
+                    "name": "Full Official Name",
+                    "provider": "Company Name",
+                    "description": "Short 1-sentence description of the certification",
+                    "duration_minutes": 130,
+                    "total_questions_official": 65,
+                    "target_role": "The professional role this certification validates (e.g. 'DevOps Engineer', 'Solutions Architect', 'Project Manager', 'Cloud Developer', 'Security Engineer', 'Data Engineer'). Extract this from the official certification description.",
+                    "difficulty_context": {
+                        "beginner": "Description of what beginner-level questions look like for THIS specific certification (foundational concepts, basic service usage)",
+                        "intermediate": "Description of what intermediate-level questions look like for THIS certification (multi-service scenarios, trade-offs, operational decisions)",
+                        "advanced": "Description of what advanced-level questions look like for THIS certification (complex enterprise scenarios, multi-account, compliance, disaster recovery)"
+                    },
+                    "system_prompt": "A comprehensive system prompt (300-500 words) that instructs an AI to generate exam questions at the EXACT level of the real certification exam. This prompt MUST include: (1) The specific professional persona to adopt (e.g. 'Senior DevOps Engineer with 10+ years experience'). (2) The types of enterprise scenarios to create (e.g. 'multi-account AWS Organizations, cross-account IAM, Policy as Code'). (3) Rules for creating plausible distractors that test deep knowledge, not surface-level recall. (4) Instructions to make explanations shuffle-proof (never reference options by letter A/B/C/D, always by service/concept name). (5) The complexity escalation strategy specific to this certification's discipline.",
+                    "domains": [
+                        { "name": "Domain Name", "weight": 25 }
+                    ]`;
+
         const prompt = official_guide_url 
             ? `
             Discover the official blueprint for the certification: "${query}".
             Use the official guide URL as a reference: ${official_guide_url}
             
-            Identify the core domains and their relative percentage weights based on the official documentation.
-            Validate that the information is accurate and complete.
+            CRITICAL: Identify the TARGET PROFESSIONAL ROLE from the official certification description.
+            For example: "DevOps Engineer" for AWS DevOps Professional, "Solutions Architect" for AWS SAA, "Project Manager" for PMP, etc.
+            Also generate difficulty_context specific to this certification's domain of expertise.
             
-            Return a valid JSON object with the following structure:
+            Return a valid JSON object:
             {
                 "exam": {
-                    "id": "short-code-id",
-                    "name": "Full Official Name",
-                    "provider": "Company Name",
-                    "description": "Short 1-sentence description",
-                    "duration_minutes": 130,
-                    "total_questions_official": 60,
-                    "domains": [
-                        { "name": "Domain Name", "weight": 25 },
-                        ...
-                    ]
+                    ${commonExamFields}
                 },
-                "confidence": "high" | "medium" | "low",
+                "confidence": "high",
                 "validation": {
                     "domains_validated": true,
                     "weights_sum_to_100": true,
                     "official_source_found": true
                 },
-                "source": "official_guide" | "general_knowledge"
+                "source": "official_guide"
             }
             
             The total domain weights must sum to 100.
-            Confidence should be "high" if you found official documentation, "medium" if based on reliable sources, "low" if uncertain.
             Strictly return ONLY the JSON object.
             `
             : `
             Discover the official blueprint for the certification: "${query}".
-            Identify the core domains and their relative percentage weights based on current official documentation.
+            Identify the core domains, weights, target professional role, and difficulty context from official documentation.
             
-            Return a valid JSON object with the following structure:
+            CRITICAL: The "target_role" must reflect the ACTUAL professional role this certification validates.
+            Examples: "DevOps Engineer", "Solutions Architect", "Cloud Developer", "Project Manager", "Security Engineer", "Data Engineer", "SysOps Administrator", "Scrum Master".
+            
+            The "difficulty_context" must be SPECIFIC to this certification's discipline, not generic cloud concepts.
+            
+            Return a valid JSON object:
             {
                 "exam": {
-                    "id": "short-code-id",
-                    "name": "Full Official Name",
-                    "provider": "Company Name",
-                    "description": "Short 1-sentence description",
-                    "duration_minutes": 130,
-                    "total_questions_official": 60,
-                    "domains": [
-                        { "name": "Domain Name", "weight": 25 },
-                        ...
-                    ]
+                    ${commonExamFields}
                 },
                 "confidence": "high" | "medium" | "low",
                 "validation": {
@@ -128,7 +134,6 @@ export class LibrarianAgent {
             }
             
             The total domain weights must sum to 100.
-            Confidence should be "high" if you're certain about the information, "medium" if mostly confident, "low" if uncertain.
             Strictly return ONLY the JSON object.
             `;
 
@@ -145,7 +150,8 @@ export class LibrarianAgent {
                 }),
             });
 
-            const response = await this.client.send(command);
+            const client = await createBedrockClient();
+            const response = await client.send(command);
             const responseBody = JSON.parse(new TextDecoder().decode(response.body));
             const rawText = responseBody.content[0].text;
 
