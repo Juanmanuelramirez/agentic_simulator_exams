@@ -18,11 +18,11 @@ dist-ssr/
 
 # kiro
 .kiro
-.kiro/bedrock-75-questions-generation
-.kiro/bedrock-75-questions-generation/.config.kiro
-.kiro/bedrock-75-questions-generation/design.md
-.kiro/bedrock-75-questions-generation/requirements.md
-.kiro/bedrock-75-questions-generation/tasks.md
+.kiro/specs
+.kiro/specs/bedrock-75-questions-generation/.config.kiro
+.kiro/specs/bedrock-75-questions-generation/design.md
+.kiro/specs/bedrock-75-questions-generation/requirements.md
+.kiro/specs/bedrock-75-questions-generation/tasks.md
 
 # tasks
 tasks.md
