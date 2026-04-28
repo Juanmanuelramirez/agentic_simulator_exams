@@ -38,6 +38,9 @@ export interface Exam {
     created_at: string;
     updated_at: string;
 
+    /** URL de CloudFront de la imagen generada por IA para este examen */
+    image_url?: string;
+
     // Campos dinámicos descubiertos de la guía oficial de la certificación
     target_role?: string;       // Ej: "DevOps Engineer", "Solutions Architect", "Project Manager"
     difficulty_context?: {      // Contexto de dificultad específico de esta certificación
@@ -223,6 +226,7 @@ export interface OrgMember {
     description?: string;
     phone?: string;
     joined_at: string;
+    access_expires_at?: string;       // ISO date, joined_at + 60 days
 }
 
 export interface Organization {
@@ -238,4 +242,37 @@ export interface Organization {
     created_at: string;
     updated_at: string;
     members?: OrgMember[];
+}
+
+
+// Subscription Types for PayPal Integration
+
+export type SubscriptionStatus = 'active' | 'cancelled' | 'expired' | 'grace_period' | 'trial' | 'none';
+export type PlanType = 'monthly' | 'annual';
+
+export interface Subscription {
+  user_id: string;
+  paypal_subscription_id?: string;
+  plan_type?: PlanType;
+  status: SubscriptionStatus;
+  selected_exam_ids: string[];       // max 3
+  price_usd?: number;
+  start_date?: string;               // ISO date
+  current_period_end?: string;        // ISO date
+  grace_period_end?: string;          // ISO date
+  trial_start_date?: string;          // ISO date
+  trial_end_date?: string;            // ISO date
+  trial_used: boolean;
+  exam_change_used_this_period: boolean;
+  cancelled_at?: string;             // ISO date
+  admin_free_access?: boolean;       // true if Super Admin granted free access, default false
+  created_at: string;                // ISO date
+  updated_at: string;                // ISO date
+}
+
+export interface ActivateSubscriptionInput {
+  paypal_subscription_id: string;
+  plan_type: PlanType;
+  price_usd: number;
+  selected_exam_ids: string[];
 }

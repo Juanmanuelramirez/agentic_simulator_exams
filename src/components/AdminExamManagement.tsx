@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { adminService } from '../services/adminService';
+import { imageService } from '../services/imageService';
 import type { Exam } from '../types';
 import AdminExamForm from './AdminExamForm';
-import { Plus, ToggleLeft, ToggleRight, Loader2 } from 'lucide-react';
+import { Plus, ToggleLeft, ToggleRight, Loader2, ImageIcon, RefreshCw } from 'lucide-react';
 
 interface AdminExamManagementProps {
   adminUserId: string;
@@ -14,6 +15,7 @@ const AdminExamManagement: React.FC<AdminExamManagementProps> = ({ adminUserId }
   const [showForm, setShowForm] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [regeneratingId, setRegeneratingId] = useState<string | null>(null);
 
   const loadExams = async () => {
     setLoading(true);
@@ -50,14 +52,25 @@ const AdminExamManagement: React.FC<AdminExamManagementProps> = ({ adminUserId }
     await loadExams();
   };
 
+  const handleRegenerateImage = async (exam: Exam) => {
+    setRegeneratingId(exam.id);
+    try {
+      await imageService.generateExamImage(exam);
+      await loadExams();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error al regenerar la imagen.');
+    } finally {
+      setRegeneratingId(null);
+    }
+  };
+
   const cardStyle: React.CSSProperties = {
     background: 'var(--bg-card)',
     border: '1px solid var(--border)',
     borderRadius: 'var(--radius)',
     padding: '1.25rem',
     display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     gap: '1rem',
   };
 
@@ -91,6 +104,28 @@ const AdminExamManagement: React.FC<AdminExamManagementProps> = ({ adminUserId }
       ) : (
         exams.map(exam => (
           <div key={exam.id} style={{ ...cardStyle, opacity: exam.is_active ? 1 : 0.6 }}>
+            {exam.image_url ? (
+              <img
+                src={exam.image_url}
+                alt={exam.name}
+                style={{ width: 48, height: 48, borderRadius: 8, objectFit: 'cover', flexShrink: 0 }}
+              />
+            ) : (
+              <div
+                style={{
+                  width: 48,
+                  height: 48,
+                  borderRadius: 8,
+                  background: '#f3f4f6',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                }}
+              >
+                <ImageIcon size={24} color="#9ca3af" />
+              </div>
+            )}
             <div style={{ flex: 1 }}>
               <p style={{ margin: '0 0 0.25rem', fontWeight: 700, fontSize: '1rem' }}>{exam.name}</p>
               <p style={{ margin: '0 0 0.5rem', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>Proveedor: {exam.provider}</p>
@@ -106,6 +141,17 @@ const AdminExamManagement: React.FC<AdminExamManagementProps> = ({ adminUserId }
               </div>
             </div>
             <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexShrink: 0 }}>
+              <button
+                onClick={() => handleRegenerateImage(exam)}
+                disabled={regeneratingId === exam.id}
+                title="Regenerar imagen"
+                style={{ background: 'transparent', border: '1px solid var(--border)', borderRadius: 8, padding: '0.5rem', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+              >
+                {regeneratingId === exam.id
+                  ? <Loader2 size={16} style={{ animation: 'spin 0.9s linear infinite' }} />
+                  : <RefreshCw size={16} color="var(--text-secondary)" />
+                }
+              </button>
               <button
                 onClick={() => handleToggleActive(exam)}
                 disabled={togglingId === exam.id}

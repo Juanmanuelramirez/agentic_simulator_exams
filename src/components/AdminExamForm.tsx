@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { adminService } from '../services/adminService';
+import { imageService } from '../services/imageService';
 import type { Exam, ExamDiscoveryResult } from '../types';
 import { Loader2 } from 'lucide-react';
 
@@ -15,8 +16,10 @@ const AdminExamForm: React.FC<AdminExamFormProps> = ({ onSaved, onCancel, adminU
   const [guideUrl, setGuideUrl] = useState('');
   const [discovering, setDiscovering] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [generatingImage, setGeneratingImage] = useState(false);
   const [discovery, setDiscovery] = useState<ExamDiscoveryResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [imageError, setImageError] = useState<string | null>(null);
 
   const handleDiscover = async () => {
     if (!name.trim()) { setError('El nombre del examen es requerido.'); return; }
@@ -37,15 +40,32 @@ const AdminExamForm: React.FC<AdminExamFormProps> = ({ onSaved, onCancel, adminU
     if (!discovery) return;
     setSaving(true);
     setError(null);
+    setImageError(null);
     try {
       const saved = await adminService.createExam(
         { ...discovery.exam, provider: provider || discovery.exam.provider },
         adminUserId
       );
-      onSaved(saved);
+      setSaving(false);
+
+      // Generate image automatically (non-blocking for exam creation)
+      setGeneratingImage(true);
+      try {
+        const result = await imageService.generateExamImage(saved);
+        if (result.success && result.image_url) {
+          onSaved({ ...saved, image_url: result.image_url });
+        } else {
+          setImageError(result.error || 'Error al generar la imagen del examen.');
+          onSaved(saved);
+        }
+      } catch {
+        setImageError('Error inesperado al generar la imagen. El examen fue guardado correctamente.');
+        onSaved(saved);
+      } finally {
+        setGeneratingImage(false);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error al guardar el examen.');
-    } finally {
       setSaving(false);
     }
   };
@@ -113,12 +133,23 @@ const AdminExamForm: React.FC<AdminExamFormProps> = ({ onSaved, onCancel, adminU
           <p style={{ fontSize: '0.85rem', margin: '0.2rem 0' }}>Confianza: <strong>{discovery.confidence}</strong></p>
           <button
             onClick={handleSave}
-            disabled={saving}
-            style={{ marginTop: '0.75rem', width: '100%', padding: '0.75rem', background: '#16a34a', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 600, cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
+            disabled={saving || generatingImage}
+            style={{ marginTop: '0.75rem', width: '100%', padding: '0.75rem', background: '#16a34a', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 600, cursor: (saving || generatingImage) ? 'not-allowed' : 'pointer', opacity: (saving || generatingImage) ? 0.7 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
           >
             {saving && <Loader2 size={16} style={{ animation: 'spin 0.9s linear infinite' }} />}
             Confirmar y Guardar
           </button>
+          {generatingImage && (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', marginTop: '0.75rem', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+              <Loader2 size={16} style={{ animation: 'spin 0.9s linear infinite' }} />
+              Generando imagen...
+            </div>
+          )}
+          {imageError && (
+            <p style={{ color: '#d97706', fontSize: '0.8rem', margin: '0.5rem 0 0', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 6, padding: '0.5rem 0.75rem' }}>
+              ⚠️ {imageError}
+            </p>
+          )}
         </div>
       )}
     </div>

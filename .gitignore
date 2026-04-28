@@ -17,12 +17,7 @@ dist-ssr/
 .env.*.local
 
 # kiro
-.kiro
-.kiro/specs
-.kiro/specs/bedrock-75-questions-generation/.config.kiro
-.kiro/specs/bedrock-75-questions-generation/design.md
-.kiro/specs/bedrock-75-questions-generation/requirements.md
-.kiro/specs/bedrock-75-questions-generation/tasks.md
+.kiro/
 
 # tasks
 tasks.md

@@ -1,6 +1,7 @@
 import { BedrockRuntimeClient } from "@aws-sdk/client-bedrock-runtime";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
+import { S3Client } from "@aws-sdk/client-s3";
 import { fetchAuthSession } from "aws-amplify/auth";
 
 /**
@@ -59,6 +60,16 @@ export async function createDynamoDBClient(): Promise<DynamoDBDocumentClient> {
     return DynamoDBDocumentClient.from(client, {
         marshallOptions: { removeUndefinedValues: true },
     });
+}
+
+/**
+ * Crea un cliente S3 con credenciales temporales de la sesión actual.
+ * Usado para subir imágenes generadas por IA al bucket de exámenes.
+ */
+export async function createS3Client(): Promise<S3Client> {
+    const credentials = await getSessionCredentials();
+    const region = import.meta.env.VITE_AWS_REGION || 'us-east-1';
+    return new S3Client({ region, credentials });
 }
 
 /**

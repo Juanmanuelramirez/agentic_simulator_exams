@@ -63,6 +63,13 @@ Resources:
                 Action:
                   - translate:TranslateText
                 Resource: '*'
+              # S3 - subida de imágenes de exámenes generadas por IA
+              - Sid: S3ImageUpload
+                Effect: Allow
+                Action:
+                  - s3:PutObject
+                Resource:
+                  - arn:aws:s3:::agentic-exam-simulator-prod/exam-images/*
       Tags:
         - Key: Project
           Value: AgenticSimulator

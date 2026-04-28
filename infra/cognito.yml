@@ -79,6 +79,7 @@ Resources:
         - email
         - openid
         - profile
+        - aws.cognito.signin.user.admin
       AllowedOAuthFlowsUserPoolClient: true
       ReadAttributes:
         - email
@@ -164,13 +165,21 @@ Resources:
                   - aws-marketplace:ViewSubscriptions
                   - aws-marketplace:Subscribe
                 Resource: '*'
-              # Cognito Admin API - para invitar usuarios (org_admin y students)
+              # Cognito Admin API - para invitar usuarios y listar estudiantes
               - Sid: CognitoAdminAccess
                 Effect: Allow
                 Action:
                   - cognito-idp:AdminCreateUser
                   - cognito-idp:AdminGetUser
+                  - cognito-idp:ListUsers
                 Resource: !GetAtt UserPool.Arn
+              # S3 - subida de imágenes de exámenes generadas por IA
+              - Sid: S3ImageUpload
+                Effect: Allow
+                Action:
+                  - s3:PutObject
+                Resource:
+                  - arn:aws:s3:::agentic-exam-simulator-prod/exam-images/*
       Tags:
         - Key: Project
           Value: AgenticSimulator
