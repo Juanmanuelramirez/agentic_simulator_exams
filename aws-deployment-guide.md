@@ -28,7 +28,7 @@ GitHub / Local
     │
     ▼
 setup-aws-infra.sh
-    ├── CloudFormation: DynamoDB (4 tablas, incluye Organizations)
+    ├── CloudFormation: DynamoDB (6 tablas, incluye Organizations, Coupons, Subscriptions)
     ├── CloudFormation: Cognito User Pool + Identity Pool + IAM Role
     │     └── custom:role (admin/org_admin/user) + custom:org_id
     ├── S3 Bucket (privado, solo CloudFront via OAC)
@@ -162,7 +162,7 @@ El script lee el User Pool ID automáticamente desde CloudFormation.
 
 | Archivo | Recursos creados |
 |---|---|
-| `infra/dynamodb.yml` | 4 tablas DynamoDB (Simulators, Questions, Attempts, Organizations) |
+| `infra/dynamodb.yml` | 6 tablas DynamoDB (Simulators, Questions, Attempts, Organizations, Coupons, Subscriptions) |
 | `infra/cognito.yml` | User Pool (con custom:role y custom:org_id), App Client (Google IdP), Dominio, Identity Pool, IAM Role (incluye Cognito Admin API) |
 
 Para actualizar infraestructura individualmente:
@@ -356,3 +356,23 @@ aws cloudformation delete-stack --stack-name exam-simulator-auth --region us-eas
 # El secret no existe, ejecuta el setup completo
 ./scripts/setup-aws-infra.sh us-east-1 admin@empresa.com
 ```
+
+---
+
+## Eliminación total de recursos AWS
+
+Para eliminar TODOS los recursos del proyecto (irreversible):
+
+```bash
+./scripts/delete-all-aws-resources.sh
+```
+
+El script elimina en orden:
+1. CloudFront Distributions (principal + imágenes)
+2. S3 Bucket (vacía contenido primero)
+3. CloudFormation stack `exam-simulator-auth` (Cognito + IAM)
+4. CloudFormation stack `exam-simulator-db` (DynamoDB)
+5. CloudFront OAC
+6. Secret en Secrets Manager
+
+Incluye verificación final automática de que no quedan recursos.

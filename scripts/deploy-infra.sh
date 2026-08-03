@@ -2,7 +2,7 @@
 # Script de despliegue de infraestructura para Exam Simulator
 # Este script crea las tablas de DynamoDB necesarias para el funcionamiento sin mocks.
 
-REGION="us-east-2"
+REGION="us-east-1"
 STACK_NAME="exam-simulator-db"
 
 echo "🚀 Iniciando despliegue de infraestructura en la región $REGION..."

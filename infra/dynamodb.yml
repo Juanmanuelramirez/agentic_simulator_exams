@@ -93,6 +93,47 @@ Resources:
         - Key: Project
           Value: AgenticSimulator
 
+  # Tabla de Cupones de Descuento
+  CouponsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: 'ExamSimulator-Coupons'
+      AttributeDefinitions:
+        - AttributeName: code
+          AttributeType: S
+      KeySchema:
+        - AttributeName: code
+          KeyType: HASH
+      BillingMode: PAY_PER_REQUEST
+      Tags:
+        - Key: Project
+          Value: AgenticSimulator
+
+  # Tabla de Suscripciones (Pagos PayPal por Estudiante Individual)
+  SubscriptionsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: 'ExamSimulator-Subscriptions'
+      AttributeDefinitions:
+        - AttributeName: user_id
+          AttributeType: S
+        - AttributeName: paypal_subscription_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: user_id
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: PayPalSubscriptionIndex
+          KeySchema:
+            - AttributeName: paypal_subscription_id
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+      BillingMode: PAY_PER_REQUEST
+      Tags:
+        - Key: Project
+          Value: AgenticSimulator
+
 Outputs:
   SimulatorsTableName:
     Value: !Ref SimulatorsTable
@@ -102,3 +143,7 @@ Outputs:
     Value: !Ref AttemptsTable
   OrganizationsTableName:
     Value: !Ref OrganizationsTable
+  CouponsTableName:
+    Value: !Ref CouponsTable
+  SubscriptionsTableName:
+    Value: !Ref SubscriptionsTable

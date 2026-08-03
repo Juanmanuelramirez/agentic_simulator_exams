@@ -106,8 +106,70 @@ export function robustParseJson<T>(rawText: string): T {
     try {
         return JSON.parse(sanitizedJson) as T;
     } catch (error: any) {
-        console.error("JSON Parsing failed after sanitation:", error.message);
-        console.error("Sanitized string snippet:", sanitizedJson.substring(0, 100) + "...");
-        throw new Error(`JSON_PARSE_ERROR: ${error.message}`);
+        // Attempt repair: fix unescaped quotes inside string values
+        // Common pattern: "key": "text with "unescaped quotes" inside"
+        try {
+            const repaired = repairUnescapedQuotes(sanitizedJson);
+            return JSON.parse(repaired) as T;
+        } catch (repairError: any) {
+            console.error("JSON Parsing failed after sanitation:", error.message);
+            console.error("Sanitized string snippet:", sanitizedJson.substring(0, 100) + "...");
+            throw new Error(`JSON_PARSE_ERROR: ${error.message}`);
+        }
     }
+}
+
+/**
+ * Attempts to repair JSON with unescaped quotes inside string values.
+ * Strategy: Find string boundaries by tracking key-value structure,
+ * and escape any quotes that appear inside values unexpectedly.
+ */
+function repairUnescapedQuotes(json: string): string {
+    // Strategy: Replace problematic patterns where quotes appear inside values
+    // Pattern: after a colon and opening quote, find content with unescaped inner quotes
+    let result = '';
+    let i = 0;
+    let inString = false;
+
+    while (i < json.length) {
+        const char = json[i];
+
+        if (!inString) {
+            result += char;
+            if (char === '"') {
+                inString = true;
+            }
+        } else {
+            // Inside a string
+            if (char === '\\') {
+                result += char;
+                i++;
+                if (i < json.length) result += json[i];
+            } else if (char === '"') {
+                // Check if this quote ends the string or is an unescaped inner quote
+                // Look ahead: if next non-whitespace is , or } or ] or : it's a real end
+                let lookAhead = i + 1;
+                while (lookAhead < json.length && (json[lookAhead] === ' ' || json[lookAhead] === '\n' || json[lookAhead] === '\r' || json[lookAhead] === '\t')) {
+                    lookAhead++;
+                }
+                const nextChar = lookAhead < json.length ? json[lookAhead] : '';
+                if (nextChar === ',' || nextChar === '}' || nextChar === ']' || nextChar === ':') {
+                    // Real end of string
+                    result += char;
+                    inString = false;
+                } else if (nextChar === '"') {
+                    // Likely end of one value, start of next key — real end
+                    result += char;
+                    inString = false;
+                } else {
+                    // Unescaped inner quote — escape it
+                    result += '\\"';
+                }
+            } else {
+                result += char;
+            }
+        }
+        i++;
+    }
+    return result;
 }

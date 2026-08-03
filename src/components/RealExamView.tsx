@@ -17,15 +17,41 @@ import {
 interface RealExamViewProps {
     exam: Exam;
     initialQuestions: Question[];
+    initialIndex?: number;
     onExit: () => void;
     onFinish: (questions: Question[]) => void;
     onPause?: (questions: Question[], currentIdx: number) => void;
+    onAutoSave?: (questions: Question[], currentIdx: number) => void;
 }
 
-const RealExamView: React.FC<RealExamViewProps> = ({ exam, initialQuestions, onExit, onFinish, onPause }) => {
+const RealExamView: React.FC<RealExamViewProps> = ({ exam, initialQuestions, initialIndex, onExit, onFinish, onPause, onAutoSave }) => {
     const [questions, setQuestions] = useState<Question[]>(initialQuestions);
-    const [currentIdx, setCurrentIdx] = useState(0);
+    const [currentIdx, setCurrentIdx] = useState(initialIndex || 0);
     const [showPauseConfirm, setShowPauseConfirm] = useState(false);
+
+    // Refs for event handlers to avoid stale closures
+    const questionsRef = React.useRef(questions);
+    const currentIdxRef = React.useRef(currentIdx);
+    React.useEffect(() => { questionsRef.current = questions; }, [questions]);
+    React.useEffect(() => { currentIdxRef.current = currentIdx; }, [currentIdx]);
+
+    // Bug 2: Auto-pause on tab close / visibility change
+    React.useEffect(() => {
+        const handleBeforeUnload = () => {
+            onPause?.(questionsRef.current, currentIdxRef.current);
+        };
+        const handleVisibilityChange = () => {
+            if (document.hidden) {
+                onPause?.(questionsRef.current, currentIdxRef.current);
+            }
+        };
+        window.addEventListener('beforeunload', handleBeforeUnload);
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        return () => {
+            window.removeEventListener('beforeunload', handleBeforeUnload);
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+        };
+    }, [onPause]);
 
     // Sincronizar cuando llegan más preguntas del background
     // Preserve user answers when merging new background-generated questions
@@ -61,6 +87,8 @@ const RealExamView: React.FC<RealExamViewProps> = ({ exam, initialQuestions, onE
         const updated = [...questions];
         updated[currentIdx] = { ...updated[currentIdx], user_selected_ids: selectedIds };
         setQuestions(updated);
+        // Auto-save progress to DynamoDB every time user answers
+        onAutoSave?.(updated, currentIdx);
     };
 
     const handleToggleReview = () => {
@@ -78,54 +106,95 @@ const RealExamView: React.FC<RealExamViewProps> = ({ exam, initialQuestions, onE
 
     const currentQuestion = questions[currentIdx];
 
+    // Detect mobile viewport for layout adjustments
+    const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+    useEffect(() => {
+        const handleResize = () => setIsMobile(window.innerWidth <= 768);
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
+
     return (
         <div className="app-container animate-fade-in" style={{ zIndex: 3000, position: 'fixed', inset: 0 }}>
-            <aside className="mini-sidebar">
-                <div className="brand-logo mb-3" style={{ background: 'var(--primary)', color: 'white', padding: '8px', borderRadius: '10px' }}>
-                    <ShieldCheck size={24} />
-                </div>
-                <button className="mini-nav-item"><LayoutDashboard size={20} /></button>
-                <button className="mini-nav-item active"><BookOpen size={20} /></button>
-                <button className="mini-nav-item"><History size={20} /></button>
-                <button className="mini-nav-item"><RotateCcw size={20} /></button>
-
-                <div style={{ marginTop: 'auto', marginBottom: '1rem' }}>
-                    <div className="user-avatar" style={{ background: '#f1f5f9', color: '#64748b' }}>JD</div>
-                </div>
-            </aside>
-
-            <main className="main-content">
-                <header className="view-header">
-                    <div className="view-header-left">
-                        <div className="breadcrumbs">
-                            <span className="text-sm font-medium">{exam.name}</span>
-                            <ChevronLeft size={14} style={{ transform: 'rotate(180deg)' }} />
-                            <span className="current text-indigo-600">Examen Real</span>
-                        </div>
+            {!isMobile && (
+                <aside className="mini-sidebar">
+                    <div className="brand-logo mb-3" style={{ background: 'var(--primary)', color: 'white', padding: '8px', borderRadius: '10px' }}>
+                        <ShieldCheck size={24} />
                     </div>
+                    <button className="mini-nav-item"><LayoutDashboard size={20} /></button>
+                    <button className="mini-nav-item active"><BookOpen size={20} /></button>
+                    <button className="mini-nav-item"><History size={20} /></button>
+                    <button className="mini-nav-item"><RotateCcw size={20} /></button>
 
-                    <div className="header-center">
-                        <div className={`timer-display ${timeLeft < 300 ? 'text-error' : 'text-slate-700'}`}>
-                            <Clock size={20} />
-                            <span className="font-bold text-xl">{formatTime(timeLeft)}</span>
-                        </div>
+                    <div style={{ marginTop: 'auto', marginBottom: '1rem' }}>
+                        <div className="user-avatar" style={{ background: '#f1f5f9', color: '#64748b' }}>JD</div>
                     </div>
+                </aside>
+            )}
 
-                    <div className="view-header-right flex items-center gap-4">
-                        <button onClick={handleFinish} className="submit-btn-pro">
-                            <Send size={18} />
-                            <span>Entregar Examen</span>
-                        </button>
-                        <button onClick={onExit} className="icon-btn-circle">
-                            <X size={20} />
-                        </button>
-                        {onPause && (
-                            <button onClick={() => setShowPauseConfirm(true)} style={{ padding: '0.375rem 0.75rem', background: '#fef3c7', color: '#92400e', border: '1px solid #fcd34d', borderRadius: 8, fontWeight: 600, fontSize: '0.8125rem', cursor: 'pointer' }}>
-                                ⏸ Pausar
+            <main className="main-content" style={isMobile ? { marginLeft: 0 } : undefined}>
+                {/* Mobile compact header */}
+                {isMobile ? (
+                    <header className="real-mobile-header">
+                        <div className="real-mobile-header-row">
+                            <div className="real-mobile-breadcrumbs">
+                                <span>{exam.name}</span>
+                                <ChevronLeft size={12} style={{ transform: 'rotate(180deg)' }} />
+                                <span className="real-mobile-current">Examen Real</span>
+                            </div>
+                            <div className="real-mobile-actions">
+                                <div className={`real-mobile-timer ${timeLeft < 300 ? 'danger' : ''}`}>
+                                    <Clock size={14} />
+                                    <span>{formatTime(timeLeft)}</span>
+                                </div>
+                                {onPause && (
+                                    <button onClick={() => setShowPauseConfirm(true)} className="real-mobile-pause-btn">⏸</button>
+                                )}
+                                <button onClick={onExit} className="real-mobile-close-btn">
+                                    <X size={18} />
+                                </button>
+                            </div>
+                        </div>
+                        <div className="real-mobile-submit-row">
+                            <button onClick={handleFinish} className="real-mobile-submit-btn">
+                                <Send size={14} />
+                                <span>Entregar</span>
                             </button>
-                        )}
-                    </div>
-                </header>
+                        </div>
+                    </header>
+                ) : (
+                    <header className="view-header">
+                        <div className="view-header-left">
+                            <div className="breadcrumbs">
+                                <span className="text-sm font-medium">{exam.name}</span>
+                                <ChevronLeft size={14} style={{ transform: 'rotate(180deg)' }} />
+                                <span className="current text-indigo-600">Examen Real</span>
+                            </div>
+                        </div>
+
+                        <div className="header-center">
+                            <div className={`timer-display ${timeLeft < 300 ? 'text-error' : 'text-slate-700'}`}>
+                                <Clock size={20} />
+                                <span className="font-bold text-xl">{formatTime(timeLeft)}</span>
+                            </div>
+                        </div>
+
+                        <div className="view-header-right flex items-center gap-4">
+                            <button onClick={handleFinish} className="submit-btn-pro">
+                                <Send size={18} />
+                                <span>Entregar Examen</span>
+                            </button>
+                            <button onClick={onExit} className="icon-btn-circle">
+                                <X size={20} />
+                            </button>
+                            {onPause && (
+                                <button onClick={() => setShowPauseConfirm(true)} style={{ padding: '0.375rem 0.75rem', background: '#fef3c7', color: '#92400e', border: '1px solid #fcd34d', borderRadius: 8, fontWeight: 600, fontSize: '0.8125rem', cursor: 'pointer' }}>
+                                    ⏸ Pausar
+                                </button>
+                            )}
+                        </div>
+                    </header>
+                )}
 
                 {showPauseConfirm && (
                     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -332,6 +401,113 @@ const RealExamView: React.FC<RealExamViewProps> = ({ exam, initialQuestions, onE
                     cursor: pointer;
                 }
                 .icon-btn-circle:hover { background: #f1f5f9; color: var(--text-main); }
+
+                /* Mobile optimizations for real exam */
+                @media (max-width: 768px) {
+                    .nav-panel { display: none; }
+                    .question-content-area { padding: 0.75rem; }
+                    .view-footer { padding: 0.5rem 0.75rem; }
+                    .pro-btn-main { padding: 0.625rem 1rem; font-size: 0.8125rem; }
+                    .btn-ghost { padding: 0.375rem 0.5rem; font-size: 0.8125rem; }
+                }
+
+                /* Mobile header styles for real exam */
+                .real-mobile-header {
+                    background: white;
+                    border-bottom: 1px solid var(--border-default, #e5e7eb);
+                    padding: 0.5rem 0.75rem;
+                    display: flex;
+                    flex-direction: column;
+                    gap: 0.375rem;
+                }
+                .real-mobile-header-row {
+                    display: flex;
+                    align-items: center;
+                    justify-content: space-between;
+                    gap: 0.5rem;
+                }
+                .real-mobile-breadcrumbs {
+                    display: flex;
+                    align-items: center;
+                    gap: 0.35rem;
+                    font-size: 0.75rem;
+                    color: #64748b;
+                    min-width: 0;
+                    overflow: hidden;
+                }
+                .real-mobile-breadcrumbs span:first-child {
+                    white-space: nowrap;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                    max-width: 140px;
+                }
+                .real-mobile-current {
+                    color: #4f46e5;
+                    font-weight: 600;
+                    white-space: nowrap;
+                }
+                .real-mobile-actions {
+                    display: flex;
+                    align-items: center;
+                    gap: 0.375rem;
+                    flex-shrink: 0;
+                }
+                .real-mobile-timer {
+                    display: flex;
+                    align-items: center;
+                    gap: 0.3rem;
+                    padding: 0.25rem 0.5rem;
+                    background: #f1f5f9;
+                    border-radius: 8px;
+                    font-size: 0.75rem;
+                    font-weight: 700;
+                    color: #334155;
+                }
+                .real-mobile-timer.danger { color: #ef4444; background: #fef2f2; }
+                .real-mobile-pause-btn {
+                    width: 32px;
+                    height: 32px;
+                    border-radius: 8px;
+                    background: #fef3c7;
+                    border: 1px solid #fcd34d;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    font-size: 0.875rem;
+                    cursor: pointer;
+                    padding: 0;
+                }
+                .real-mobile-close-btn {
+                    width: 32px;
+                    height: 32px;
+                    border-radius: 50%;
+                    background: none;
+                    border: none;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    color: #94a3b8;
+                    cursor: pointer;
+                    padding: 0;
+                }
+                .real-mobile-close-btn:hover { background: #f1f5f9; }
+                .real-mobile-submit-row {
+                    display: flex;
+                    justify-content: flex-end;
+                }
+                .real-mobile-submit-btn {
+                    display: flex;
+                    align-items: center;
+                    gap: 0.35rem;
+                    padding: 0.35rem 0.75rem;
+                    background: var(--primary, #4f46e5);
+                    color: white;
+                    border: none;
+                    border-radius: 8px;
+                    font-weight: 700;
+                    font-size: 0.75rem;
+                    cursor: pointer;
+                }
             `}</style>
         </div>
     );

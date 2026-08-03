@@ -85,7 +85,7 @@ aws cloudformation deploy \
   --parameter-overrides \
       AppName="$APP_NAME" \
       AdminEmail="$ADMIN_EMAIL" \
-      CallbackUrl="http://localhost:5173" \
+      CallbackUrl="http://localhost:5173/" \
   --capabilities CAPABILITY_NAMED_IAM \
   --no-fail-on-empty-changeset
 
@@ -207,7 +207,7 @@ else
   ok "CloudFront reutilizado: $DIST_ID"
 fi
 
-APP_URL="https://${DIST_DOMAIN}"
+APP_URL="https://${DIST_DOMAIN}/"
 ok "URL de la aplicación: $APP_URL"
 
 # Actualizar bucket policy para OAC

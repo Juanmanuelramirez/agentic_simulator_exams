@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import type { OrgMember } from '../types';
 import InviteUserModal from './InviteUserModal';
-import { Search, Users, UserPlus, Mail, Phone, Calendar } from 'lucide-react';
+import { Search, Users, UserPlus, Mail, Phone, Calendar, Clock, RefreshCw } from 'lucide-react';
 import { useLanguage } from './LanguageContext';
+import { computeOrgAccessStatus } from '../services/organizationService';
+import { adminAccessService } from '../services/adminAccessService';
 
 interface StudentListProps {
   orgId: string;
@@ -10,9 +12,12 @@ interface StudentListProps {
   onMemberAdded: () => void;
 }
 
+const STATUS_ORDER: Record<string, number> = { expired: 0, expiring_soon: 1, active: 2 };
+
 const StudentList: React.FC<StudentListProps> = ({ orgId, members, onMemberAdded }) => {
   const [search, setSearch] = useState('');
   const [showInviteModal, setShowInviteModal] = useState(false);
+  const [extendingUserId, setExtendingUserId] = useState<string | null>(null);
   const { t } = useLanguage();
 
   // Filter to students only (role='user')
@@ -25,9 +30,55 @@ const StudentList: React.FC<StudentListProps> = ({ orgId, members, onMemberAdded
     return s.full_name.toLowerCase().includes(q) || s.email.toLowerCase().includes(q);
   });
 
+  // Sort: expired → expiring_soon → active
+  const sorted = [...filtered].sort((a, b) => {
+    const statusA = computeOrgAccessStatus(a);
+    const statusB = computeOrgAccessStatus(b);
+    return (STATUS_ORDER[statusA] ?? 2) - (STATUS_ORDER[statusB] ?? 2);
+  });
+
   const handleInviteSuccess = () => {
     setShowInviteModal(false);
     onMemberAdded();
+  };
+
+  const handleExtendAccess = async (userId: string) => {
+    setExtendingUserId(userId);
+    try {
+      await adminAccessService.extendOrgAccess(orgId, userId);
+      onMemberAdded();
+    } catch {
+      alert(t('org_extend_error'));
+    } finally {
+      setExtendingUserId(null);
+    }
+  };
+
+  // ── Helper: compute days remaining ────────────────────────────────────────
+
+  const getDaysRemaining = (member: OrgMember): number | null => {
+    if (!member.access_expires_at) return null;
+    const now = new Date();
+    const expiresAt = new Date(member.access_expires_at);
+    return Math.ceil((expiresAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+  };
+
+  const getStatusColor = (status: string): string => {
+    switch (status) {
+      case 'expired': return '#ef4444';
+      case 'expiring_soon': return '#f59e0b';
+      case 'active': return '#22c55e';
+      default: return 'var(--text-secondary)';
+    }
+  };
+
+  const getStatusLabel = (status: string): string => {
+    switch (status) {
+      case 'expired': return t('org_access_expired');
+      case 'expiring_soon': return t('org_access_expiring_soon');
+      case 'active': return t('org_access_active');
+      default: return '';
+    }
   };
 
   // ── Styles (matching OrgManagement.tsx patterns) ──────────────────────────
@@ -113,33 +164,94 @@ const StudentList: React.FC<StudentListProps> = ({ orgId, members, onMemberAdded
       </div>
 
       {/* Student list */}
-      {filtered.length === 0 ? (
+      {sorted.length === 0 ? (
         <p style={{ color: 'var(--text-secondary)', textAlign: 'center', padding: '1.5rem 0', margin: 0 }}>
           {students.length === 0 ? t('org_no_students') : t('org_no_search_results')}
         </p>
       ) : (
-        filtered.map(student => (
-          <div key={student.user_id} style={cardStyle}>
-            <div style={{ flex: 1 }}>
-              <p style={{ margin: '0 0 0.25rem', fontWeight: 600, fontSize: '0.95rem' }}>
-                {student.full_name}
-              </p>
-              <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-                <span style={metaStyle}>
-                  <Mail size={13} /> {student.email}
-                </span>
-                {student.phone && (
+        sorted.map(student => {
+          const status = computeOrgAccessStatus(student);
+          const daysRemaining = getDaysRemaining(student);
+          const color = getStatusColor(status);
+          const isExtending = extendingUserId === student.user_id;
+          const isProminent = status === 'expiring_soon' || status === 'expired';
+
+          return (
+            <div key={student.user_id} style={cardStyle}>
+              <div style={{ flex: 1 }}>
+                <p style={{ margin: '0 0 0.25rem', fontWeight: 600, fontSize: '0.95rem' }}>
+                  {student.full_name}
+                </p>
+                <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
                   <span style={metaStyle}>
-                    <Phone size={13} /> {student.phone}
+                    <Mail size={13} /> {student.email}
                   </span>
-                )}
-                <span style={metaStyle}>
-                  <Calendar size={13} /> {new Date(student.joined_at).toLocaleDateString()}
-                </span>
+                  {student.phone && (
+                    <span style={metaStyle}>
+                      <Phone size={13} /> {student.phone}
+                    </span>
+                  )}
+                  <span style={metaStyle}>
+                    <Calendar size={13} /> {new Date(student.joined_at).toLocaleDateString()}
+                  </span>
+                </div>
+                {/* Expiration info row */}
+                <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginTop: '0.375rem' }}>
+                  {student.access_expires_at && (
+                    <span style={metaStyle}>
+                      <Clock size={13} /> {t('org_access_expires_at')}: {new Date(student.access_expires_at).toLocaleDateString()}
+                    </span>
+                  )}
+                  <span style={{
+                    ...metaStyle,
+                    color,
+                    fontWeight: 600,
+                  }}>
+                    ●{' '}
+                    {status === 'expired'
+                      ? getStatusLabel(status)
+                      : daysRemaining != null && daysRemaining > 0
+                        ? t('org_access_days_remaining').replace('{days}', String(daysRemaining))
+                        : getStatusLabel(status)
+                    }
+                  </span>
+                </div>
               </div>
+
+              {/* Extend Access button */}
+              <button
+                onClick={() => handleExtendAccess(student.user_id)}
+                disabled={isExtending}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.375rem',
+                  padding: '0.5rem 0.875rem',
+                  borderRadius: 8,
+                  fontWeight: 600,
+                  fontSize: '0.8rem',
+                  cursor: isExtending ? 'not-allowed' : 'pointer',
+                  whiteSpace: 'nowrap',
+                  ...(isProminent
+                    ? {
+                        background: 'var(--primary)',
+                        color: '#fff',
+                        border: 'none',
+                      }
+                    : {
+                        background: 'transparent',
+                        color: 'var(--primary)',
+                        border: '1px solid var(--primary)',
+                      }),
+                  opacity: isExtending ? 0.6 : 1,
+                }}
+              >
+                <RefreshCw size={14} style={isExtending ? { animation: 'spin 1s linear infinite' } : undefined} />
+                {isExtending ? t('loading') : t('org_extend_access')}
+              </button>
             </div>
-          </div>
-        ))
+          );
+        })
       )}
 
       {/* Invite Student Modal */}

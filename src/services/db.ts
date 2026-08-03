@@ -13,6 +13,8 @@ const TABLES = {
     ATTEMPTS: "ExamSimulator-Attempts",
     GENERATION_JOBS: "ExamSimulator-GenerationJobs",
     ORGANIZATIONS: "ExamSimulator-Organizations",
+    SUBSCRIPTIONS: "ExamSimulator-Subscriptions",
+    COUPONS: "ExamSimulator-Coupons",
 };
 
 export { TABLES };

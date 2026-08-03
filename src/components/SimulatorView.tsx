@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import type { Exam, Question } from '../types';
 import QuestionCard from './QuestionCard';
 import { useLanguage } from './LanguageContext';
@@ -14,16 +14,67 @@ import {
 interface SimulatorViewProps {
   exam: Exam;
   initialQuestions: Question[];
+  initialIndex?: number;
   onExit: () => void;
   onFinish: (questions: Question[]) => void;
   onPause?: (questions: Question[], currentIdx: number) => void;
+  onAutoSave?: (questions: Question[], currentIdx: number) => void;
 }
 
-const SimulatorView: React.FC<SimulatorViewProps> = ({ exam, initialQuestions, onExit, onFinish, onPause }) => {
+const SimulatorView: React.FC<SimulatorViewProps> = ({ exam, initialQuestions, initialIndex, onExit, onFinish, onPause, onAutoSave }) => {
   const [questions, setQuestions] = useState<Question[]>(initialQuestions);
-  const [currentIdx, setCurrentIdx] = useState(0);
+  const [currentIdx, setCurrentIdx] = useState(initialIndex || 0);
   const [showPauseConfirm, setShowPauseConfirm] = useState(false);
+  const [showInactivityModal, setShowInactivityModal] = useState(false);
   const { t } = useLanguage();
+
+  // Refs for event handlers to avoid stale closures
+  const questionsRef = useRef(questions);
+  const currentIdxRef = useRef(currentIdx);
+  useEffect(() => { questionsRef.current = questions; }, [questions]);
+  useEffect(() => { currentIdxRef.current = currentIdx; }, [currentIdx]);
+
+  // Bug 2: Auto-pause on tab close / visibility change
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      onPause?.(questionsRef.current, currentIdxRef.current);
+    };
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        onPause?.(questionsRef.current, currentIdxRef.current);
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [onPause]);
+
+  // Bug 3: 10-minute inactivity auto-pause
+  const INACTIVITY_TIMEOUT = 10 * 60 * 1000; // 10 minutes
+  const inactivityTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const resetInactivityTimer = useCallback(() => {
+    if (inactivityTimer.current) clearTimeout(inactivityTimer.current);
+    inactivityTimer.current = setTimeout(() => {
+      setShowInactivityModal(true);
+    }, INACTIVITY_TIMEOUT);
+  }, []);
+
+  useEffect(() => {
+    const events = ['mousemove', 'keydown', 'touchstart', 'click'];
+    const handler = () => {
+      if (!showInactivityModal) resetInactivityTimer();
+    };
+    events.forEach(e => window.addEventListener(e, handler));
+    resetInactivityTimer(); // start timer
+    return () => {
+      events.forEach(e => window.removeEventListener(e, handler));
+      if (inactivityTimer.current) clearTimeout(inactivityTimer.current);
+    };
+  }, [resetInactivityTimer, showInactivityModal]);
 
   // Sincronizar cuando llegan más preguntas del background
   // Preserve user answers when merging new background-generated questions
@@ -54,6 +105,8 @@ const SimulatorView: React.FC<SimulatorViewProps> = ({ exam, initialQuestions, o
     const updated = [...questions];
     updated[currentIdx] = { ...updated[currentIdx], user_selected_ids: selectedIds };
     setQuestions(updated);
+    // Auto-save progress to DynamoDB every time user answers
+    onAutoSave?.(updated, currentIdx);
   };
 
   const handleVerify = () => {
@@ -70,50 +123,92 @@ const SimulatorView: React.FC<SimulatorViewProps> = ({ exam, initialQuestions, o
 
   const progressPercent = ((currentIdx + 1) / questions.length) * 100;
 
+  // Detect mobile viewport for layout adjustments
+  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth <= 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   return (
     <div className="app-container animate-fade-in" style={{ zIndex: 2000, position: 'fixed', inset: 0 }}>
-      <aside className="mini-sidebar">
-        <div className="brand-logo mb-3" style={{ background: 'var(--primary)', color: 'white', padding: '8px', borderRadius: '10px' }}>
-          <ShieldCheck size={24} />
-        </div>
-        <button className="mini-nav-item active" title={t('simulator')}>
-          <BookOpen size={20} />
-        </button>
-      </aside>
-
-      <main className="main-content">
-        <header className="view-header">
-          <div className="view-header-left">
-            <div className="breadcrumbs">
-              <span className="text-sm font-medium">{exam.name}</span>
-              <ChevronLeft size={14} style={{ transform: 'rotate(180deg)' }} />
-              <span className="current text-indigo-600">{t('simulator')}</span>
-            </div>
+      {!isMobile && (
+        <aside className="mini-sidebar">
+          <div className="brand-logo mb-3" style={{ background: 'var(--primary)', color: 'white', padding: '8px', borderRadius: '10px' }}>
+            <ShieldCheck size={24} />
           </div>
+          <button className="mini-nav-item active" title={t('simulator')}>
+            <BookOpen size={20} />
+          </button>
+        </aside>
+      )}
 
-          <div className="header-center flex items-center gap-4">
-            <span className="text-sm font-bold text-slate-700">{t('question')} {currentIdx + 1} / {questions.length}</span>
-            <div className="progress-container-mini">
-              <div className="progress-bar-mini" style={{ width: `${progressPercent}%` }}></div>
-              <div className="progress-dot" style={{ left: `${progressPercent}%` }}></div>
+      <main className="main-content" style={isMobile ? { marginLeft: 0 } : undefined}>
+        {/* Mobile compact header */}
+        {isMobile ? (
+          <header className="sim-mobile-header">
+            <div className="sim-mobile-header-row">
+              <div className="sim-mobile-breadcrumbs">
+                <span>{exam.name}</span>
+                <ChevronLeft size={12} style={{ transform: 'rotate(180deg)' }} />
+                <span className="sim-mobile-current">{t('simulator')}</span>
+              </div>
+              <div className="sim-mobile-actions">
+                {onPause && (
+                  <button onClick={() => setShowPauseConfirm(true)} className="sim-mobile-pause-btn">
+                    ⏸
+                  </button>
+                )}
+                <button onClick={onExit} className="sim-mobile-close-btn">
+                  <X size={18} />
+                </button>
+              </div>
             </div>
-          </div>
+            <div className="sim-mobile-progress-row">
+              <span className="sim-mobile-counter">{t('question')} {currentIdx + 1}/{questions.length}</span>
+              <div className="progress-container-mini" style={{ flex: 1 }}>
+                <div className="progress-bar-mini" style={{ width: `${progressPercent}%` }}></div>
+              </div>
+              <div className="badge-green" style={{ padding: '0.2rem 0.4rem', fontSize: '0.7rem' }}>
+                <CheckCircle size={12} />
+              </div>
+            </div>
+          </header>
+        ) : (
+          <header className="view-header">
+            <div className="view-header-left">
+              <div className="breadcrumbs">
+                <span className="text-sm font-medium">{exam.name}</span>
+                <ChevronLeft size={14} style={{ transform: 'rotate(180deg)' }} />
+                <span className="current text-indigo-600">{t('simulator')}</span>
+              </div>
+            </div>
 
-          <div className="view-header-right flex items-center gap-4">
-            <div className="badge-green">
-              <CheckCircle size={14} />
-              <span>{t('saved')}</span>
+            <div className="header-center flex items-center gap-4">
+              <span className="text-sm font-bold text-slate-700">{t('question')} {currentIdx + 1} / {questions.length}</span>
+              <div className="progress-container-mini">
+                <div className="progress-bar-mini" style={{ width: `${progressPercent}%` }}></div>
+                <div className="progress-dot" style={{ left: `${progressPercent}%` }}></div>
+              </div>
             </div>
-            {onPause && (
-              <button onClick={() => setShowPauseConfirm(true)} className="pause-btn" title="Pausar examen">
-                ⏸ Pausar
+
+            <div className="view-header-right flex items-center gap-4">
+              <div className="badge-green">
+                <CheckCircle size={14} />
+                <span>{t('saved')}</span>
+              </div>
+              {onPause && (
+                <button onClick={() => setShowPauseConfirm(true)} className="pause-btn" title="Pausar examen">
+                  ⏸ Pausar
+                </button>
+              )}
+              <button onClick={onExit} className="icon-btn-circle">
+                <X size={20} />
               </button>
-            )}
-            <button onClick={onExit} className="icon-btn-circle">
-              <X size={20} />
-            </button>
-          </div>
-        </header>
+            </div>
+          </header>
+        )}
 
         {/* Pause confirmation modal */}
         {showPauseConfirm && (
@@ -124,6 +219,20 @@ const SimulatorView: React.FC<SimulatorViewProps> = ({ exam, initialQuestions, o
               <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center' }}>
                 <button onClick={() => setShowPauseConfirm(false)} style={{ padding: '0.625rem 1.25rem', background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: 10, fontWeight: 600, cursor: 'pointer' }}>{t('continueExam')}</button>
                 <button onClick={() => onPause?.(questions, currentIdx)} style={{ padding: '0.625rem 1.25rem', background: '#f59e0b', color: 'white', border: 'none', borderRadius: 10, fontWeight: 700, cursor: 'pointer' }}>{t('pauseAndExit')}</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Inactivity modal (Bug 3) */}
+        {showInactivityModal && (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ background: 'white', borderRadius: 16, padding: '2rem', maxWidth: 400, width: '90%', textAlign: 'center' }}>
+              <h3 style={{ marginBottom: '0.5rem' }}>⏸ {t('inactivityTitle') !== 'inactivityTitle' ? t('inactivityTitle') : 'Examen pausado'}</h3>
+              <p style={{ color: '#64748b', marginBottom: '1.5rem' }}>{t('inactivityMessage') !== 'inactivityMessage' ? t('inactivityMessage') : 'Tu examen ha sido pausado por inactividad. ¿Deseas continuar?'}</p>
+              <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center' }}>
+                <button onClick={() => { setShowInactivityModal(false); resetInactivityTimer(); }} style={{ padding: '0.625rem 1.25rem', background: 'var(--primary)', color: 'white', border: 'none', borderRadius: 10, fontWeight: 700, cursor: 'pointer' }}>{t('inactivityContinue') !== 'inactivityContinue' ? t('inactivityContinue') : 'Continuar'}</button>
+                <button onClick={() => onPause?.(questions, currentIdx)} style={{ padding: '0.625rem 1.25rem', background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: 10, fontWeight: 600, cursor: 'pointer' }}>{t('pauseAndExit') || 'Salir'}</button>
               </div>
             </div>
           </div>
@@ -206,7 +315,7 @@ const SimulatorView: React.FC<SimulatorViewProps> = ({ exam, initialQuestions, o
         .simulator-body {
           flex: 1;
           overflow-y: auto;
-          padding: 2rem;
+          padding: 1rem 2rem;
           background: #ffffff;
         }
         
@@ -286,6 +395,93 @@ const SimulatorView: React.FC<SimulatorViewProps> = ({ exam, initialQuestions, o
         
         .scrollbar-hide::-webkit-scrollbar { display: none; }
         .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+
+        /* Mobile optimizations for simulator */
+        @media (max-width: 768px) {
+          .simulator-body { padding: 0.5rem; }
+          .view-footer { padding: 0.4rem 0.5rem; min-height: 44px; }
+          .pro-btn-main { padding: 0.5rem 0.85rem; font-size: 0.8rem; border-radius: 10px; gap: 0.5rem; }
+          .btn-ghost { padding: 0.35rem 0.5rem; font-size: 0.8rem; }
+        }
+
+        /* Mobile header styles */
+        .sim-mobile-header {
+          background: white;
+          border-bottom: 1px solid var(--border-default, #e5e7eb);
+          padding: 0.5rem 0.75rem;
+          display: flex;
+          flex-direction: column;
+          gap: 0.375rem;
+        }
+        .sim-mobile-header-row {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+        }
+        .sim-mobile-breadcrumbs {
+          display: flex;
+          align-items: center;
+          gap: 0.35rem;
+          font-size: 0.75rem;
+          color: #64748b;
+          min-width: 0;
+          overflow: hidden;
+        }
+        .sim-mobile-breadcrumbs span:first-child {
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          max-width: 180px;
+        }
+        .sim-mobile-current {
+          color: #4f46e5;
+          font-weight: 600;
+          white-space: nowrap;
+        }
+        .sim-mobile-actions {
+          display: flex;
+          align-items: center;
+          gap: 0.375rem;
+          flex-shrink: 0;
+        }
+        .sim-mobile-pause-btn {
+          width: 32px;
+          height: 32px;
+          border-radius: 8px;
+          background: #fef3c7;
+          border: 1px solid #fcd34d;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 0.875rem;
+          cursor: pointer;
+          padding: 0;
+        }
+        .sim-mobile-close-btn {
+          width: 32px;
+          height: 32px;
+          border-radius: 50%;
+          background: none;
+          border: none;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: #94a3b8;
+          cursor: pointer;
+          padding: 0;
+        }
+        .sim-mobile-close-btn:hover { background: #f1f5f9; }
+        .sim-mobile-progress-row {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+        }
+        .sim-mobile-counter {
+          font-size: 0.7rem;
+          font-weight: 700;
+          color: #334155;
+          white-space: nowrap;
+        }
       `}</style>
     </div>
   );

@@ -46,6 +46,7 @@ Before writing each question, mentally evaluate: "Would this question be too eas
 2. Adding compliance/governance constraints (regulatory, audit, data residency)
 3. Adding operational trade-offs (cost vs performance vs availability vs security)
 4. Requiring cross-service integration knowledge (not just single-service recall)
+5. Requiring the candidate to distinguish between SIMILAR technologies based on specific technical characteristics (e.g., memory footprint, permission scope granularity, buffer resilience strategy, scaling model differences)
 
 DISTRACTOR ENGINEERING:
 - Each incorrect option MUST be a real architectural approach that a less experienced ${role} would choose
@@ -70,15 +71,24 @@ QUESTION GENERATION TASK:
 - Options language: ALWAYS English
 
 SCENARIO REQUIREMENTS:
-1. Write a realistic enterprise scenario (80-150 words) with specific business constraints (compliance, cost, availability, scale, governance).
-2. Include organizational context: multi-account structures, cross-region requirements, regulatory constraints, or operational scale that forces architectural decisions.
-3. The scenario must require the candidate to evaluate TRADE-OFFS between valid approaches, not just identify the "right service."
+1. Write a realistic enterprise scenario (60-100 words) with specific business constraints (compliance, cost, availability, scale, governance) and measurable technical requirements (e.g., "<1% CPU", "<50MB RAM", "99.99% availability").
+2. VARY the question format naturally — do NOT always use the same structure. Choose ONE of these formats randomly:
+   FORMAT A (Requirements List): Scenario paragraph → "The solution must: • requirement 1 • requirement 2 • requirement 3" → Direct question
+   FORMAT B (Embedded Constraints): Scenario with constraints woven into the narrative → Direct question at the end
+   FORMAT C (Situation + Question): Short situation description → "Which [specific approach/service/pattern] should the team use to [specific goal] while [specific constraint]?"
+   FORMAT D (Problem Statement): Describe a specific problem or failure → Ask what architectural change resolves it
+3. ALWAYS end with a DIRECT QUESTION that tells the student exactly what to decide (e.g., "Which architectural approach fulfills these requirements?", "Which combination of services meets all requirements while minimizing operational overhead?", "What should the DevOps engineer implement to resolve this issue?").
+4. The final question must be specific — not generic "Which is best?" but targeted to the key trade-off dimension.
+5. CRITICAL: Do NOT use the same format for every question. Real certification exams mix formats.
 
 DISTRACTOR QUALITY (CRITICAL):
 - Every incorrect option MUST be a technically valid approach that a junior professional might choose.
 - Distractors should fail on ONE specific dimension: operational overhead, cost, compliance gap, scalability limit, or governance weakness.
 - NEVER include obviously wrong options like "manually configure" or "use a single Lambda for everything."
-- Each option should be 1-2 sentences describing a complete architectural approach with specific service names.
+- Each option MUST be concise: 1-2 sentences MAX (40-80 words). Focus on the KEY differentiating action/service, not exhaustive implementation details.
+- Options should be scannable — a student should be able to read all 4 options in under 60 seconds.
+- Start each option with the PRIMARY action or service (e.g., "Use AWS CodePipeline with...", "Deploy a centralized ECR repository...").
+- Do NOT repeat context from the question in the options. The option should only state WHAT to do, not WHY.
 
 CORRECT ANSWER PLACEMENT (CRITICAL):
 - The correct answer MUST be placed RANDOMLY among options A, B, C, D — NOT always in the same position.
@@ -96,31 +106,41 @@ EXPLANATION RULES:
 - For each incorrect option, explain the SPECIFIC dimension where it fails.
 - The explanation must be self-contained and educational.
 
+SELF-VALIDATION (CRITICAL — act as an exam quality reviewer before returning):
+Before finalizing, verify:
+1. Is the correct answer UNAMBIGUOUSLY correct given the constraints? If two options could be correct, add a constraint that disambiguates.
+2. Are ALL distractors technically plausible but clearly inferior on ONE specific dimension?
+3. Is the question answerable WITHOUT external knowledge beyond the certification scope?
+4. Would a certified professional answer this correctly in under 2 minutes?
+5. Are the options concise and scannable (30-60 words each)?
+If any check fails, revise the question before returning.
+
 ${type === 'multi_select'
     ? 'MULTI-SELECT: Exactly 2 or 3 options are correct. The question MUST explicitly state "Select TWO" or "Select THREE".'
     : 'SINGLE-SELECT: Exactly ONE option is correct.'}
 
 Return ONLY valid JSON:
 {
-    "question_text": "Enterprise scenario with organizational context, business constraints, and specific technical requirements (80-150 words, in ${language})",
+    "question_text": "Enterprise scenario (60-100 words, in ${language}) using one of the varied formats (A/B/C/D). MUST end with a specific direct question. If using bullet requirements, use '•' as separator.",
     "options": [
-        {"id": "A", "text": "Complete architectural approach with specific services, patterns, and implementation details (2-3 sentences in English)"},
-        {"id": "B", "text": "Plausible alternative approach — technically valid but sub-optimal on one specific dimension (2-3 sentences in English)"},
-        {"id": "C", "text": "Another valid approach that introduces unnecessary operational overhead or misses a key requirement (2-3 sentences in English)"},
-        {"id": "D", "text": "Approach that uses an anti-pattern or violates a core principle of the ${role} discipline (2-3 sentences in English)"}
+        {"id": "A", "text": "Concise architectural approach — lead with the primary service/action, include key differentiator (1-2 sentences, 30-60 words, in English)"},
+        {"id": "B", "text": "Plausible alternative — technically valid but sub-optimal on one specific dimension (1-2 sentences, 30-60 words, in English)"},
+        {"id": "C", "text": "Another valid approach that introduces unnecessary overhead or misses a key requirement (1-2 sentences, 30-60 words, in English)"},
+        {"id": "D", "text": "Approach that uses a similar but inferior technology or violates a core principle (1-2 sentences, 30-60 words, in English)"}
     ],
     "correct_ids": ${type === 'multi_select' ? '["A", "C"]' : '["C"]'},
-    "explanation": "Architectural deep dive (200-300 words, in ${language}). Name the architectural pattern. Explain WHY the correct approach is optimal. For each incorrect approach, state the specific service/concept name and the dimension where it fails. Never use letters A/B/C/D.",
-    "why_correct": "Name the architectural pattern and explain why it is the optimal solution for this specific scenario (in ${language}).",
+    "explanation": "Architectural deep dive (200-300 words, in ${language}). Name the architectural pattern. Explain the SPECIFIC TECHNICAL REASON the correct approach is superior (e.g., memory footprint, permission scope, buffer resilience). For each incorrect approach, state the specific service/concept name and the dimension where it fails. Never use letters A/B/C/D.",
+    "why_correct": "Name the architectural pattern and explain the specific technical characteristic that makes it optimal (in ${language}).",
     "why_incorrect": [
-        "Why [specific service/approach by name] fails on [named dimension: operational overhead / cost / compliance / scalability / governance] (in ${language})",
-        "Why [specific service/approach by name] fails on [named dimension] (in ${language})",
-        "Why [specific service/approach by name] fails on [named dimension] (in ${language})"
+        "Why [specific service/approach by name] fails on [named dimension with specific technical reason] (in ${language})",
+        "Why [specific service/approach by name] fails on [named dimension with specific technical reason] (in ${language})",
+        "Why [specific service/approach by name] fails on [named dimension with specific technical reason] (in ${language})"
     ],
     "official_link": "https://docs.relevant-provider.com/path"
 }
 
 Strictly return ONLY the JSON. No preamble, no markdown.
+IMPORTANT: Escape all double quotes inside string values with backslash (\\"). Do not use unescaped quotes inside JSON string values.
             `;
 
             const command = new InvokeModelCommand({
@@ -175,6 +195,27 @@ Strictly return ONLY the JSON. No preamble, no markdown.
             });
             aiGenerated.options = shuffledOptions;
             aiGenerated.correct_ids = aiGenerated.correct_ids.map((id: string) => oldIdToNew.get(id) || id);
+
+            // Strip letter references (A, B, C, D) from explanations since options were shuffled
+            const stripLetterRefs = (text: string): string => {
+                return text
+                    .replace(/\b[Oo]ption\s+[A-D]\b/g, (match) => {
+                        // Replace "Option A" with just the service name context (remove the reference)
+                        return match.replace(/\s+[A-D]$/, '');
+                    })
+                    .replace(/\bin option [A-D]\b/gi, '')
+                    .replace(/\b[Oo]pción\s+[A-D]\b/g, (match) => match.replace(/\s+[A-D]$/, ''));
+            };
+
+            if (aiGenerated.explanation) {
+                aiGenerated.explanation = stripLetterRefs(aiGenerated.explanation);
+            }
+            if (aiGenerated.why_correct) {
+                aiGenerated.why_correct = stripLetterRefs(aiGenerated.why_correct);
+            }
+            if (aiGenerated.why_incorrect && Array.isArray(aiGenerated.why_incorrect)) {
+                aiGenerated.why_incorrect = aiGenerated.why_incorrect.map((r: string) => stripLetterRefs(r));
+            }
 
             const question: Question = {
                 id: `q-${Math.random().toString(36).substr(2, 9)}`,

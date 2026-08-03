@@ -7,10 +7,13 @@ import {
   ShieldCheck,
   Activity,
   AlertTriangle,
-  Building2
+  Building2,
+  CreditCard,
+  Ticket
 } from 'lucide-react';
 import type { UserProfile } from '../types';
 import { useLanguage, LANGUAGES } from './LanguageContext';
+import { useAuth } from './AuthContext';
 
 interface SidebarProps {
   user: UserProfile;
@@ -24,6 +27,7 @@ const Sidebar: React.FC<SidebarProps> = ({ user, activeView, onViewChange, onLog
   const [showLogoutConfirm, setShowLogoutConfirm] = React.useState(false);
   const [mobileOpen, setMobileOpen] = React.useState(false);
   const { language, setLanguage, t } = useLanguage();
+  const { user: authUser, subscription } = useAuth();
 
   const handleLogoutClick = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -120,6 +124,28 @@ const Sidebar: React.FC<SidebarProps> = ({ user, activeView, onViewChange, onLog
             </button>
           )}
 
+          {/* admin: Individual Students */}
+          {role === 'admin' && (
+            <button
+              className={`nav-item ${activeView === 'admin-students' ? 'active' : ''}`}
+              onClick={() => handleNavClick('admin-students')}
+            >
+              <Users size={20} />
+              <span>{t('admin_students')}</span>
+            </button>
+          )}
+
+          {/* admin: Coupons */}
+          {role === 'admin' && (
+            <button
+              className={`nav-item ${activeView === 'coupons' ? 'active' : ''}`}
+              onClick={() => handleNavClick('coupons')}
+            >
+              <Ticket size={20} />
+              <span>{t('coupon_title')}</span>
+            </button>
+          )}
+
           {/* org_admin: My Organization */}
           {role === 'org_admin' && (
             <button
@@ -161,6 +187,31 @@ const Sidebar: React.FC<SidebarProps> = ({ user, activeView, onViewChange, onLog
             >
               <BookOpen size={20} />
               <span>{t('studyGuide')}</span>
+            </button>
+          )}
+
+          {/* user: Mis Simuladores — solo para estudiantes individuales con suscripción */}
+          {role === 'user' && !authUser?.org_id && (
+            (authUser?.subscription_status && ['active', 'trial', 'grace_period'].includes(authUser.subscription_status)) ||
+            subscription?.admin_free_access === true
+          ) && (
+            <button
+              className={`nav-item ${activeView === 'simulators' ? 'active' : ''}`}
+              onClick={() => handleNavClick('simulators')}
+            >
+              <BookOpen size={20} />
+              <span>{t('mySimulators')}</span>
+            </button>
+          )}
+
+          {/* user: Mi Suscripción — only for individual students with active/trial/grace subscription */}
+          {role === 'user' && !authUser?.org_id && authUser?.subscription_status && ['active', 'trial', 'grace_period'].includes(authUser.subscription_status) && (
+            <button
+              className={`nav-item ${activeView === 'subscription' ? 'active' : ''}`}
+              onClick={() => handleNavClick('subscription')}
+            >
+              <CreditCard size={20} />
+              <span>{t('sub_my_subscription')}</span>
             </button>
           )}
         </nav>
@@ -277,11 +328,13 @@ const Sidebar: React.FC<SidebarProps> = ({ user, activeView, onViewChange, onLog
           display: flex;
           flex-direction: column;
           gap: 0.25rem;
+          align-items: stretch;
         }
 
         .nav-item {
           display: flex;
           align-items: center;
+          justify-content: flex-start;
           gap: 0.75rem;
           padding: 0.75rem 1rem;
           border-radius: 10px;

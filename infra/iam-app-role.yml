@@ -54,9 +54,13 @@ Resources:
                   - bedrock:InvokeModel
                   - bedrock:InvokeModelWithResponseStream
                 Resource:
-                  - !Sub 'arn:aws:bedrock:${AWS::Region}::foundation-model/anthropic.claude-3-haiku*'
-                  - !Sub 'arn:aws:bedrock:${AWS::Region}::foundation-model/anthropic.claude-3-sonnet*'
-                  - !Sub 'arn:aws:bedrock:${AWS::Region}::foundation-model/amazon.titan*'
+                  - 'arn:aws:bedrock:*::foundation-model/anthropic.claude-haiku-4-5*'
+                  - 'arn:aws:bedrock:*::foundation-model/anthropic.claude-3-5-haiku*'
+                  - 'arn:aws:bedrock:*::foundation-model/anthropic.claude-3-haiku*'
+                  - 'arn:aws:bedrock:*::foundation-model/anthropic.claude-3-sonnet*'
+                  - 'arn:aws:bedrock:*::foundation-model/amazon.titan*'
+                  - !Sub 'arn:aws:bedrock:${AWS::Region}:${AWS::AccountId}:inference-profile/us.anthropic.claude-haiku-4-5*'
+                  - !Sub 'arn:aws:bedrock:${AWS::Region}:${AWS::AccountId}:inference-profile/us.anthropic.claude-3-5-haiku*'
               # Translate - traduccion de preguntas
               - Sid: TranslateAccess
                 Effect: Allow

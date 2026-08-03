@@ -48,14 +48,44 @@ Questions generate in blocks for better UX:
 - **Spinner with Progress**: Real-time feedback with ETA
 - **Start Faster**: Begin exam as soon as first block is ready
 
-### 5. Admin Exam Management
+### 5. Discount Coupons
+Admins can create and manage discount coupons:
+- **Coupon Creation**: Set discount percentage, usage limits, and expiration dates
+- **Coupon Preview**: Preview coupon details before publishing
+- **Coupon Listing**: View all coupons with status and usage stats
+- **Student Redemption**: Students apply coupons at checkout via CouponInput component
+
+### 6. PayPal Subscription Payments
+Monetization through PayPal subscriptions:
+- **Subscription Plans**: Multiple tier options with different features
+- **PayPal Integration**: Secure checkout via PayPalProvider
+- **Subscription Management**: View, upgrade, or cancel subscriptions
+- **Trial Support**: Free trial period with TrialBanner notifications
+- **Organization Expiration**: OrgAccessExpiredView when subscription lapses
+
+### 7. Enhanced Study Guide
+AI-powered personalized study recommendations:
+- **Exam Results Analyzer**: Deep analysis of weak areas across domains
+- **Plan Prioritizer**: Prioritizes study topics by impact and urgency
+- **Resource Resolver**: Maps weak areas to specific learning resources
+- **Video Recommendations**: YouTube video suggestions via youtubeService
+- **Study Day Resources**: Day-by-day structured study materials
+- **Documentation Mapping**: Links certification domains to official docs
+
+### 8. Exam Images
+Support for images in exam questions:
+- **Image Upload**: Admins can attach images to questions
+- **Image Display**: Questions render images alongside text (QuestionCard)
+- **CloudFront CDN**: Images served via separate CloudFront distribution
+
+### 9. Admin Exam Management
 Administrators can:
 - **Add New Exams**: Use AI to discover certification blueprints
 - **Manage Catalog**: Edit, activate, or deactivate exams
 - **View Statistics**: See usage stats and average scores
 - **Monitor Performance**: Track student activity across exams
 
-### 6. AI-Powered Exam Discovery
+### 10. AI-Powered Exam Discovery
 Bedrock Librarian Agent automatically:
 - Searches for official certification guides
 - Extracts exam blueprint (domains, weights, duration)
@@ -190,14 +220,39 @@ Bedrock Librarian Agent automatically:
 3. **OrgExamAssignment** - Assign/unassign exams to organizations
 4. **InviteUserModal** - Invite org_admin or student via Cognito
 5. **StudentList** - Student list with search within an organization
-6. **ExamLengthSelector** - Student selects exam percentage
-7. **QuestionGenerationSpinner** - Shows real-time progress
-8. **AdminExamForm** - Add new exams with AI discovery
-9. **AdminExamManagement** - Manage exam catalog
+6. **AdminStudentList** - Admin-level student management
+7. **ExamLengthSelector** - Student selects exam percentage
+8. **QuestionGenerationSpinner** - Shows real-time progress
+9. **AdminExamForm** - Add new exams with AI discovery
+10. **AdminExamManagement** - Manage exam catalog
+11. **CouponManagement** - Admin coupon CRUD
+12. **CouponCreateForm** - Create discount coupons
+13. **CouponList** - View all coupons with status
+14. **CouponPreview** - Preview coupon before publishing
+15. **CouponInput** - Student coupon redemption
+16. **SubscriptionPlans** - Display subscription tiers
+17. **SubscriptionManager** - Manage active subscriptions
+18. **PayPalProvider** - PayPal SDK integration
+19. **TrialBanner** - Trial period notification
+20. **OrgAccessExpiredView** - Expired subscription view
+21. **MySimulators** - Student's exam library
+22. **VideoRecommendations** - YouTube study video suggestions
+23. **StudyDayResources** - Day-by-day study materials
+24. **SlotIndicator** - Visual slot/capacity indicator
+
+### New Agents
+1. **examResultsAnalyzer.ts** - Deep analysis of exam results per domain
+2. **planPrioritizer.ts** - Prioritizes study topics by impact
+3. **resourceResolver.ts** - Maps weak areas to learning resources
 
 ### New Services
 1. **organizationService.ts** - Organization CRUD, exam assignment, member management
 2. **invitationService.ts** - Cognito AdminCreateUser for user invitations
+3. **couponService.ts** - Coupon CRUD and validation
+4. **subscriptionService.ts** - PayPal subscription management
+5. **youtubeService.ts** - YouTube video search for study resources
+6. **adminAccessService.ts** - Admin access control and permissions
+7. **imageService.ts** - Exam image upload and retrieval via CloudFront
 
 ### New Functions
 1. **calculateQuestionCount()** - Calculate questions from percentage
@@ -209,8 +264,10 @@ Bedrock Librarian Agent automatically:
 ### Database Updates
 1. **Exam Table**: Added official_guide_url, is_active, created_by, timestamps
 2. **ExamAttempt Table**: Added exam_length_percentage, total_questions_requested, org_id
-3. **Organizations Table**: New table for multi-tenant organization management (id, name, members, assigned_exam_ids)
-4. **Cognito**: Added custom:org_id attribute, Google identity provider, AdminCreateUser permissions
+3. **Organizations Table**: Multi-tenant organization management (id, name, members, assigned_exam_ids)
+4. **Coupons Table**: Discount coupons (id, code, discount_percent, usage_limit, expiration)
+5. **Subscriptions Table**: PayPal subscription records (id, user_id, plan_id, status, expiration)
+6. **Cognito**: Added custom:org_id attribute, Google identity provider, AdminCreateUser permissions
 
 ## 📝 Documentation Files
 
@@ -268,8 +325,7 @@ Bedrock Librarian Agent automatically:
 
 - Main README: `README.md`
 - AWS Deployment Guide: `aws-deployment-guide.md`
-- AWS Cleanup Guide: `AWS-CLEANUP-GUIDE.md`
-- Amplify Deployment: `AMPLIFY-DEPLOYMENT-STEPS.md`
+- AWS Resource Cleanup: `scripts/delete-all-aws-resources.sh`
 
 ---
 

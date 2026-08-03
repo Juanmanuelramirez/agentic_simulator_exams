@@ -14,10 +14,11 @@ import { fetchAuthSession } from "aws-amplify/auth";
  */
 
 // Bedrock Model IDs
-// Claude 3 Haiku - disponible sin suscripción adicional en us-east-1
+// Claude 3 Haiku - legacy model (works until Sep 2026, no Marketplace subscription needed)
+// TODO: Switch to us.anthropic.claude-haiku-4-5-20251001-v1:0 once Marketplace propagation is confirmed
 export const AI_MODELS = {
     CLAUDE_3_HAIKU: "anthropic.claude-3-haiku-20240307-v1:0",
-    CLAUDE_HAIKU_4_5: "anthropic.claude-3-haiku-20240307-v1:0",
+    CLAUDE_HAIKU_4_5: "us.anthropic.claude-haiku-4-5-20251001-v1:0",
     DEFAULT_FAST: "anthropic.claude-3-haiku-20240307-v1:0"
 };
 

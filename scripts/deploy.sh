@@ -43,17 +43,19 @@ echo "   CloudFront : $DIST_ID"
 npm run build
 
 # Assets con cache largo (hash en nombre = inmutables)
+# --exclude "exam-images/*" preserva las imágenes subidas por el admin
 aws s3 sync dist/ "s3://${BUCKET_NAME}" --delete \
   --cache-control "public,max-age=31536000,immutable" \
-  --exclude "index.html"
+  --exclude "index.html" \
+  --exclude "exam-images/*"
 
 # index.html siempre fresco
 aws s3 cp dist/index.html "s3://${BUCKET_NAME}/index.html" \
   --cache-control "no-cache,no-store,must-revalidate"
 
-# Invalidar solo index.html (más económico que /*)
+# Invalidar toda la caché (necesario porque los hashes de assets cambian)
 aws cloudfront create-invalidation \
   --distribution-id "$DIST_ID" \
-  --paths "/index.html" > /dev/null
+  --paths "/*" > /dev/null
 
 echo "✅ Deploy completado"

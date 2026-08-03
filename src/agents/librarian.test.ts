@@ -7,7 +7,7 @@ const mockSend = vi.fn();
 vi.mock('../services/aws', () => ({
     createBedrockClient: vi.fn().mockResolvedValue({ send: mockSend }),
     AI_MODELS: {
-        DEFAULT_FAST: "anthropic.claude-3-5-haiku-20241022-v1:0"
+        DEFAULT_FAST: "us.anthropic.claude-haiku-4-5-20251001-v1:0"
     }
 }));
 

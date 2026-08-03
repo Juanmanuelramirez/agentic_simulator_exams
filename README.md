@@ -118,9 +118,12 @@ For local development, you can bypass the Cognito attribute check by setting:
 ```
 src/
 ├── agents/           # AI Core logic
-│   ├── librarian.ts  # Exam discovery agent
-│   ├── solver.ts     # Bedrock-integrated question generator
-│   └── mentor.ts     # Study guide generation agent
+│   ├── librarian.ts          # Exam discovery agent
+│   ├── solver.ts             # Bedrock-integrated question generator
+│   ├── mentor.ts             # Study guide generation agent
+│   ├── examResultsAnalyzer.ts # Deep analysis of exam results
+│   ├── planPrioritizer.ts    # Study plan prioritization
+│   └── resourceResolver.ts   # Maps weak areas to learning resources
 ├── components/       # UI Components
 │   ├── AdminDashboard.tsx      # Global management view
 │   ├── AdminExamManagement.tsx # Exam CRUD for admins
@@ -129,6 +132,10 @@ src/
 │   ├── OrgExamAssignment.tsx   # Assign exams to organizations
 │   ├── InviteUserModal.tsx     # Invite org_admin or student
 │   ├── StudentList.tsx         # Student list with search
+│   ├── CouponManagement.tsx    # Coupon CRUD for admins
+│   ├── SubscriptionPlans.tsx   # PayPal subscription tiers
+│   ├── SubscriptionManager.tsx # Manage subscriptions
+│   ├── PayPalProvider.tsx      # PayPal SDK integration
 │   ├── UserDashboard.tsx       # Learner performance view
 │   ├── SimulatorView.tsx       # Interactive learning mode
 │   ├── RealExamView.tsx        # Evaluation mode
@@ -141,11 +148,18 @@ src/
 │   ├── db.ts                   # DynamoDB service
 │   ├── organizationService.ts  # Organization CRUD + exam assignment
 │   ├── invitationService.ts    # Cognito AdminCreateUser
-│   └── adminService.ts         # Admin operations
+│   ├── adminService.ts         # Admin operations
+│   ├── couponService.ts        # Coupon CRUD and validation
+│   ├── subscriptionService.ts  # PayPal subscription management
+│   ├── imageService.ts         # Exam image upload/retrieval
+│   ├── youtubeService.ts       # YouTube study video search
+│   └── adminAccessService.ts   # Admin access control
+├── data/
+│   └── documentationMapping.ts # Certification domain → docs mapping
 ├── i18n/
 │   └── translations.ts         # 4-language translations (es, en, pt, fr)
 ├── types/
-│   └── index.ts                # Core interfaces (Exam, Organization, OrgMember, etc.)
+│   └── index.ts                # Core interfaces (Exam, Organization, Coupon, etc.)
 ├── App.tsx                     # Main router and role-based rendering
 └── App.css                     # Design system tokens
 ```
@@ -248,6 +262,8 @@ The application uses **Amazon DynamoDB** for global persistence of users, exams,
 - **Questions Table**: Caches AI-generated questions to balance cost and performance.
 - **Attempts Table**: Records user exam results and analytics.
 - **Organizations Table**: Stores organization records, members, and assigned exam IDs (multi-tenant).
+- **Coupons Table**: Discount coupons with codes, limits, and expiration.
+- **Subscriptions Table**: PayPal subscription records and status tracking.
 
 #### AWS Configuration
 Ensure your environment variables are configured in `.env.local`:
@@ -487,3 +503,13 @@ VITE_CLOUDFRONT_DOMAIN=https://your-cloudfront-domain.cloudfront.net
 - Serverless backend with AWS Lambda
 - Advanced caching strategies with Redis
 - Organization billing and subscription management
+
+## 🧹 AWS Resource Cleanup
+
+To delete all AWS resources associated with this project:
+
+```bash
+./scripts/delete-all-aws-resources.sh
+```
+
+This script removes: CloudFront distributions, S3 bucket, CloudFormation stacks (Cognito + DynamoDB), IAM roles, Secrets Manager, and OAC. It includes a verification step to confirm no resources remain.

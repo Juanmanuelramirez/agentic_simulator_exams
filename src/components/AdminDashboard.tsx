@@ -1,8 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import type { UserProfile, Exam, ExamAttempt } from '../types';
-import { Users, PlusCircle, Activity, Search, X, Loader2, Trash2, Info, Zap, BookOpen } from 'lucide-react';
+import { Users, PlusCircle, Activity, Search, X, Loader2, Trash2, Info, Zap, BookOpen, Upload } from 'lucide-react';
 import { librarian } from '../agents/librarian';
 import { searchLocalCatalog } from '../data/certifications-catalog';
+import { adminAccessService } from '../services/adminAccessService';
+import { imageService } from '../services/imageService';
+import CouponManagement from './CouponManagement';
+import { useAuth } from './AuthContext';
 
 interface AdminDashboardProps {
     users: UserProfile[];
@@ -10,7 +14,7 @@ interface AdminDashboardProps {
     attempts: ExamAttempt[];
     onAddExam: (examName: string) => Promise<void>;
     onDeleteExam: (examId: string) => void;
-    initialView?: 'overview' | 'users' | 'exams' | 'analytics' | 'logs';
+    initialView?: 'overview' | 'users' | 'exams' | 'analytics' | 'logs' | 'coupons';
 }
 
 const AdminDashboard: React.FC<AdminDashboardProps> = ({
@@ -21,7 +25,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     onDeleteExam,
     initialView = 'overview'
 }) => {
-    const [activeView, setActiveView] = useState<'overview' | 'users' | 'exams' | 'analytics' | 'logs'>(initialView);
+    const [activeView, setActiveView] = useState<'overview' | 'users' | 'exams' | 'analytics' | 'logs' | 'coupons'>(initialView);
+    const { user: authUser } = useAuth();
     const [searchTerm, setSearchTerm] = useState('');
     const [showModal, setShowModal] = useState(false);
     const [discoveryQuery, setDiscoveryQuery] = useState('');
@@ -29,6 +34,43 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     const [isSearching, setIsSearching] = useState(false);
     const [selectedExam, setSelectedExam] = useState<string | null>(null);
     const [isAdding, setIsAdding] = useState(false);
+    const [freeAccessMap, setFreeAccessMap] = useState<Record<string, boolean>>({});
+    const [togglingFreeAccess, setTogglingFreeAccess] = useState<Set<string>>(new Set());
+    const [uploadingImageId, setUploadingImageId] = useState<string | null>(null);
+    const [imageError, setImageError] = useState<string | null>(null);
+    const imageInputRef = useRef<HTMLInputElement>(null);
+    const imageExamRef = useRef<Exam | null>(null);
+
+    // Load real admin_free_access state from DynamoDB for each user
+    useEffect(() => {
+        const loadFreeAccessState = async () => {
+            const map: Record<string, boolean> = {};
+            for (const user of users) {
+                try {
+                    const sub = await import('../services/subscriptionService').then(m => m.subscriptionService.getSubscription(user.id));
+                    map[user.id] = sub?.admin_free_access === true;
+                } catch { /* ignore */ }
+            }
+            setFreeAccessMap(map);
+        };
+        if (users.length > 0) loadFreeAccessState();
+    }, [users]);
+
+    const handleToggleFreeAccess = async (userId: string, enabled: boolean) => {
+        setTogglingFreeAccess(prev => new Set(prev).add(userId));
+        try {
+            await adminAccessService.toggleFreeAccess(userId, enabled);
+            setFreeAccessMap(prev => ({ ...prev, [userId]: enabled }));
+        } catch (err) {
+            console.error('Error toggling free access:', err);
+        } finally {
+            setTogglingFreeAccess(prev => {
+                const next = new Set(prev);
+                next.delete(userId);
+                return next;
+            });
+        }
+    };
 
     // ── Métricas calculadas desde datos reales ────────────────────────────────
     const totalQuestions = attempts.reduce((sum, a) => sum + (a.questions?.length || 0), 0);
@@ -101,11 +143,76 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
         }
     };
 
+    const handleImageUploadClick = (exam: Exam) => {
+        imageExamRef.current = exam;
+        imageInputRef.current?.click();
+    };
+
+    const handleImageFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        const exam = imageExamRef.current;
+        if (!file || !exam) return;
+        e.target.value = '';
+
+        if (!file.type.startsWith('image/')) {
+            alert('❌ El archivo debe ser una imagen (PNG, JPG, WebP).');
+            return;
+        }
+        if (file.size > 10 * 1024 * 1024) {
+            alert(`❌ La imagen pesa ${(file.size / 1024 / 1024).toFixed(1)} MB. Máximo permitido: 10 MB.`);
+            return;
+        }
+
+        // Validate dimensions
+        const dims = await new Promise<{ w: number; h: number; ok: boolean }>((resolve) => {
+            const img = new Image();
+            img.onload = () => { URL.revokeObjectURL(img.src); resolve({ w: img.naturalWidth, h: img.naturalHeight, ok: true }); };
+            img.onerror = () => { URL.revokeObjectURL(img.src); resolve({ w: 0, h: 0, ok: false }); };
+            img.src = URL.createObjectURL(file);
+        });
+
+        if (!dims.ok) { alert('❌ No se pudo leer la imagen. Intenta con otro archivo.'); return; }
+        if (dims.w < 960 || dims.h < 540) {
+            alert(`❌ Imagen muy pequeña (${dims.w}×${dims.h}). Mínimo requerido: 960×540 px.`);
+            return;
+        }
+        const ratio = dims.w / dims.h;
+        if (ratio < (16 / 9) * 0.9 || ratio > (16 / 9) * 1.1) {
+            alert(`❌ Proporción incorrecta (${dims.w}×${dims.h}). Se requiere 16:9.\nEjemplo: 1280×720 o 1920×1080.`);
+            return;
+        }
+
+        setUploadingImageId(exam.id);
+        setImageError(null);
+        try {
+            const result = await imageService.uploadExamImage(exam, file);
+            if (result.success) {
+                alert(`✅ Imagen subida correctamente para "${exam.name}".`);
+            } else {
+                alert(`❌ Error al subir la imagen: ${result.error || 'Error desconocido'}`);
+            }
+            window.location.reload();
+        } catch (err) {
+            alert(`❌ Error al subir la imagen: ${err instanceof Error ? err.message : 'Error desconocido'}`);
+        } finally {
+            setUploadingImageId(null);
+            imageExamRef.current = null;
+        }
+    };
+
     return (
         <div className="admin-dashboard fade-in">
+            {/* Hidden file input for exam image upload */}
+            <input
+                ref={imageInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                style={{ display: 'none' }}
+                onChange={handleImageFileSelected}
+            />
             <header className="admin-header">
                 <div className="header-content">
-                    <h1>{activeView === 'overview' ? 'Visión General' : activeView === 'users' ? 'Gestión de Usuarios' : activeView === 'exams' ? 'Catálogo de Simuladores' : 'Desempeño de la Plataforma'}</h1>
+                    <h1>{activeView === 'overview' ? 'Visión General' : activeView === 'users' ? 'Gestión de Usuarios' : activeView === 'exams' ? 'Catálogo de Simuladores' : activeView === 'coupons' ? 'Cupones de Descuento' : 'Desempeño de la Plataforma'}</h1>
                 </div>
             </header>
 
@@ -172,12 +279,21 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                         <th>ACCIONES</th>
                                     </tr>
                                 </thead>
+                                {imageError && (
+                                    <caption style={{ captionSide: 'bottom', color: '#dc2626', fontSize: '0.85rem', padding: '0.75rem', textAlign: 'left' }}>
+                                        ⚠️ {imageError}
+                                    </caption>
+                                )}
                                 <tbody>
                                     {exams.map(exam => (
                                         <tr key={exam.id}>
                                             <td>
                                                 <div className="exam-cell">
-                                                    <div className="exam-icon-box">{exam.provider === 'AWS' ? 'aws' : exam.provider === 'Azure' ? 'azure' : 'cert'}</div>
+                                                    {exam.image_url ? (
+                                                        <img src={exam.image_url} alt={exam.name} style={{ width: 40, height: 40, borderRadius: 8, objectFit: 'cover' }} />
+                                                    ) : (
+                                                        <div className="exam-icon-box">{exam.provider === 'AWS' ? 'aws' : exam.provider === 'Azure' ? 'azure' : 'cert'}</div>
+                                                    )}
                                                     <div className="cell-info">
                                                         <div className="cell-name">{exam.name}</div>
                                                         <div className="cell-id text-xs text-secondary">{exam.id.toUpperCase()}</div>
@@ -191,6 +307,17 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                             </td>
                                             <td>
                                                 <div className="action-row">
+                                                    <button
+                                                        className="action-btn-minimal"
+                                                        onClick={() => handleImageUploadClick(exam)}
+                                                        disabled={uploadingImageId === exam.id}
+                                                        title={exam.image_url ? 'Cambiar imagen (16:9, mín 960×540, máx 10 MB)' : 'Subir imagen (16:9, mín 960×540, máx 10 MB)'}
+                                                    >
+                                                        {uploadingImageId === exam.id
+                                                            ? <Loader2 size={16} className="animate-spin" />
+                                                            : <Upload size={16} strokeWidth={exam.image_url ? 3 : 2} color={exam.image_url ? '#16a34a' : '#9ca3af'} />
+                                                        }
+                                                    </button>
                                                     <button className="action-btn-minimal"><Activity size={16} /></button>
                                                     <button className="action-btn-minimal" onClick={() => onDeleteExam(exam.id)}><Trash2 size={16} /></button>
                                                 </div>
@@ -278,12 +405,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                         <th>RACHA</th>
                                         <th>ACCESO</th>
                                         <th>SIMULACIONES</th>
-                                        <th>ACCIONES</th>
+                                        <th>ACCESO SIN PAGO</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {filteredUsers.map(user => {
                                         const userAttempts = attempts.filter(a => a.id.includes(user.id) || true);
+                                        const isFree = freeAccessMap[user.id] ?? false;
+                                        const isToggling = togglingFreeAccess.has(user.id);
                                         return (
                                             <tr key={user.id}>
                                                 <td>
@@ -308,10 +437,15 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                                     {new Date(user.last_access).toLocaleDateString()}
                                                 </td>
                                                 <td className="font-bold">{userAttempts.length}</td>
-                                                <td>
-                                                    <button className="action-btn-circle" title="Ver Detalles">
-                                                        <Info size={18} />
-                                                    </button>
+                                                <td style={{ textAlign: 'center' }}>
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={isFree}
+                                                        disabled={isToggling}
+                                                        onChange={() => handleToggleFreeAccess(user.id, !isFree)}
+                                                        style={{ width: 18, height: 18, cursor: isToggling ? 'wait' : 'pointer', accentColor: 'var(--primary)' }}
+                                                        title={isFree ? 'Acceso sin pago activado' : 'Activar acceso sin pago'}
+                                                    />
                                                 </td>
                                             </tr>
                                         );
@@ -429,6 +563,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                 </div>
                             </div>
                         </div>
+                    </div>
+                )}
+
+                {activeView === 'coupons' && (
+                    <div className="coupons-view animate-up">
+                        <CouponManagement adminId={authUser?.id || ''} />
                     </div>
                 )}
             </div>

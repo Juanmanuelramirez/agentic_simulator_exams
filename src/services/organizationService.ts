@@ -9,6 +9,22 @@ import {
 import { TABLES, dbService } from "./db";
 import type { Organization, OrgMember, Exam } from "../types";
 
+// ── Org Access Status ───────────────────────────────────────────────────────
+
+export type OrgAccessStatus = 'active' | 'expiring_soon' | 'expired';
+
+export function computeOrgAccessStatus(
+  member: OrgMember,
+  now: Date = new Date()
+): OrgAccessStatus {
+  if (!member.access_expires_at) return 'active';
+  const expiresAt = new Date(member.access_expires_at);
+  if (now >= expiresAt) return 'expired';
+  const daysRemaining = Math.ceil((expiresAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+  if (daysRemaining <= 7) return 'expiring_soon';
+  return 'active';
+}
+
 // ── Validation helpers ──────────────────────────────────────────────────────
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -290,7 +306,11 @@ export async function addMember(
   if (!existing) throw new Error(`Organization with id "${orgId}" not found`);
 
   const currentMembers = existing.members || [];
-  const updatedMembers = [...currentMembers, member];
+  const memberWithExpiry = {
+    ...member,
+    access_expires_at: new Date(new Date(member.joined_at).getTime() + 60 * 24 * 60 * 60 * 1000).toISOString(),
+  };
+  const updatedMembers = [...currentMembers, memberWithExpiry];
 
   const client = await createDynamoDBClient();
   const result = await client.send(

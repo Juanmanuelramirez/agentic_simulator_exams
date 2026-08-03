@@ -2,6 +2,27 @@ import React from 'react';
 import type { UserProfile, ExamAttempt, Exam, StudyGuide } from '../types';
 import { History, BookOpen, TrendingUp, Award, Loader2, CheckCircle, Play, Target, Zap } from 'lucide-react';
 import { useLanguage } from './LanguageContext';
+import DocumentationLinks from './StudyDayResources';
+import VideoRecommendations from './VideoRecommendations';
+
+/** Placeholder con gradiente cuando el examen no tiene imagen */
+const ExamImagePlaceholder: React.FC<{ provider: string }> = ({ provider }) => (
+    <div style={{
+        width: '100%',
+        aspectRatio: '16/9',
+        borderRadius: '16px 16px 0 0',
+        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        color: '#fff',
+        fontWeight: 700,
+        fontSize: '0.95rem',
+        letterSpacing: '0.5px',
+    }}>
+        {provider}
+    </div>
+);
 
 interface UserDashboardProps {
     user: UserProfile;
@@ -15,14 +36,17 @@ interface UserDashboardProps {
     onGenerateGuide: () => void;
     onToggleTask: (taskId: string) => void;
     initialTab?: 'overview' | 'history' | 'study';
+    readOnly?: boolean;
+    trialBanner?: React.ReactNode;
 }
 
 const UserDashboard: React.FC<UserDashboardProps> = ({
     user, attempts, exams, studyGuide, isGeneratingGuide,
     onStartExam, onResumeExam, onViewDetail, onGenerateGuide, onToggleTask,
-    initialTab = 'overview'
+    initialTab = 'overview', readOnly = false, trialBanner
 }) => {
     const [activeTab, setActiveTab] = React.useState<'overview' | 'history' | 'study'>(initialTab);
+    const [failedImages, setFailedImages] = React.useState<Set<string>>(new Set());
     const { t } = useLanguage();
 
     React.useEffect(() => {
@@ -46,6 +70,8 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
                     <p className="text-secondary">{t('yourProgress')}</p>
                 </div>
             </header>
+
+            {trialBanner}
 
             {/* Tabs de navegación */}
             <div className="user-tabs mb-3">
@@ -157,6 +183,20 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
                                             : null;
                                         return (
                                             <div key={exam.id} className="exam-card-user">
+                                                {/* Imagen del examen */}
+                                                {exam.image_url && !failedImages.has(exam.id) ? (
+                                                    <img
+                                                        src={exam.image_url}
+                                                        alt={exam.name}
+                                                        loading="lazy"
+                                                        onError={() => setFailedImages(prev => new Set(prev).add(exam.id))}
+                                                        style={{ aspectRatio: '16/9', objectFit: 'cover', borderRadius: '16px 16px 0 0', margin: '-1.5rem -1.5rem 0 -1.5rem', width: 'calc(100% + 3rem)' }}
+                                                    />
+                                                ) : (
+                                                    <div style={{ margin: '-1.5rem -1.5rem 0 -1.5rem', width: 'calc(100% + 3rem)' }}>
+                                                        <ExamImagePlaceholder provider={exam.provider} />
+                                                    </div>
+                                                )}
                                                 <div className="exam-card-header">
                                                     <div className="exam-provider-badge">{exam.provider}</div>
                                                     {examBest !== null && (
@@ -179,7 +219,9 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
                                                 </div>
                                                 <button
                                                     className="start-exam-btn"
-                                                    onClick={() => onStartExam(exam.id)}
+                                                    onClick={() => !readOnly && onStartExam(exam.id)}
+                                                    style={readOnly ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
+                                                    disabled={readOnly}
                                                 >
                                                     <Play size={16} />
                                                     {examAttempts.length > 0 ? t('retryExam') : t('startSimulator')}
@@ -280,6 +322,17 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
                                     </div>
                                 </div>
 
+                                {/* Hint banner explaining how to use the study plan */}
+                                <div style={{
+                                    display: 'flex', alignItems: 'center', gap: '0.75rem',
+                                    padding: '0.75rem 1rem', marginBottom: '1rem',
+                                    background: 'rgba(99, 102, 241, 0.06)', border: '1px solid rgba(99, 102, 241, 0.15)',
+                                    borderRadius: '10px', fontSize: '0.8125rem', color: 'var(--text-secondary)', lineHeight: 1.5
+                                }}>
+                                    <span style={{ fontSize: '1.25rem', flexShrink: 0 }}>💡</span>
+                                    <span>{t('studyGuideHint') || 'Marca cada tarea completada para registrar tu avance diario. Usa los enlaces de documentación y videos para profundizar en cada tema.'}</span>
+                                </div>
+
                                 <div className="study-plan-container">
                                     {studyGuide.plan_days.map((dayPlan) => (
                                         <div key={dayPlan.day} className="day-card card mb-2 p-2">
@@ -294,13 +347,27 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
                                                                 <input
                                                                     type="checkbox"
                                                                     checked={task.completed}
-                                                                    onChange={() => onToggleTask(task.id)}
+                                                                    onChange={() => {
+                                                                        if (!task.completed) {
+                                                                            onToggleTask(task.id);
+                                                                            // Show congratulation toast
+                                                                            const toast = document.createElement('div');
+                                                                            toast.className = 'congrats-toast';
+                                                                            toast.textContent = '🎉 ' + (t('taskCompleted') || '¡Excelente! Sigue así');
+                                                                            document.body.appendChild(toast);
+                                                                            setTimeout(() => toast.classList.add('show'), 10);
+                                                                            setTimeout(() => { toast.classList.remove('show'); setTimeout(() => toast.remove(), 300); }, 2500);
+                                                                        } else {
+                                                                            onToggleTask(task.id);
+                                                                        }
+                                                                    }}
                                                                     className="task-checkbox"
+                                                                    title={t('markTaskHint') || 'Marca esta tarea cuando la completes'}
                                                                 />
                                                                 <span className={task.completed ? 'completed-text' : ''}>{task.text}</span>
                                                             </div>
                                                             {task.official_link && (
-                                                                <a href={task.official_link} target="_blank" rel="noopener noreferrer" className="link-icon" title="Ver documentación oficial">
+                                                                <a href={task.official_link} target="_blank" rel="noopener noreferrer" className="link-icon" title={t('viewOfficialDoc') || 'Consulta la documentación oficial para profundizar en este tema'}>
                                                                     <BookOpen size={16} />
                                                                 </a>
                                                             )}
@@ -308,6 +375,8 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
                                                     );
                                                 })}
                                             </div>
+                                            <DocumentationLinks documentation={dayPlan.documentation} />
+                                            <VideoRecommendations videos={dayPlan.videos} />
                                         </div>
                                     ))}
                                 </div>
@@ -343,7 +412,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
                 .section-title { font-size: 1.125rem; font-weight: 700; margin: 0; }
 
                 .exams-grid-user { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1.5rem; padding: 1.5rem; }
-                .exam-card-user { background: var(--bg-surface); border: 1px solid var(--border-default); border-radius: 16px; padding: 1.5rem; display: flex; flex-direction: column; gap: 0.75rem; transition: all 0.2s; }
+                .exam-card-user { background: var(--bg-surface); border: 1px solid var(--border-default); border-radius: 16px; padding: 1.5rem; display: flex; flex-direction: column; gap: 0.75rem; transition: all 0.2s; overflow: hidden; }
                 .exam-card-user:hover { border-color: var(--primary); box-shadow: 0 4px 20px rgba(99,102,241,0.1); transform: translateY(-2px); }
                 .exam-card-header { display: flex; justify-content: space-between; align-items: center; }
                 .exam-provider-badge { font-size: 0.75rem; font-weight: 700; color: var(--primary); background: rgba(99,102,241,0.08); padding: 0.25rem 0.75rem; border-radius: 20px; }
@@ -378,6 +447,8 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
                 .completed-text { text-decoration: line-through; color: var(--text-secondary); opacity: 0.5; }
                 .link-icon { color: var(--primary); opacity: 0.7; transition: all 0.2s; }
                 .link-icon:hover { opacity: 1; }
+                .congrats-toast { position: fixed; bottom: 2rem; left: 50%; transform: translateX(-50%) translateY(20px); background: linear-gradient(135deg, #10b981, #059669); color: white; padding: 0.75rem 1.5rem; border-radius: 12px; font-weight: 700; font-size: 0.9375rem; box-shadow: 0 8px 24px rgba(16,185,129,0.3); opacity: 0; transition: all 0.3s ease; z-index: 9999; pointer-events: none; }
+                .congrats-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
                 .flex { display: flex; }
                 .items-center { align-items: center; }
                 .justify-between { justify-content: space-between; }

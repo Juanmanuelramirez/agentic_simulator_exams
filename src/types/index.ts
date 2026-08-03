@@ -113,10 +113,24 @@ export interface StudyTask {
     official_link?: string;
 }
 
+export interface DocumentationReference {
+    url: string;
+    title: string;
+}
+
+export interface VideoRecommendation {
+    title: string;
+    channelName: string;
+    thumbnailUrl: string;
+    videoUrl: string;
+}
+
 export interface StudyDay {
     day: number;
     title: string;
     tasks: string[]; // IDs of tasks
+    documentation?: DocumentationReference[];
+    videos?: VideoRecommendation[];
 }
 
 export interface StudyGuide {
@@ -245,6 +259,25 @@ export interface Organization {
 }
 
 
+// Coupon Types
+
+export type CouponType = 'time' | 'percentage';
+export type CouponStatus = 'active' | 'inactive';
+
+export interface Coupon {
+  code: string;              // PK — 12 caracteres alfanuméricos
+  type: CouponType;          // 'time' | 'percentage'
+  value: number;             // días (si time) o porcentaje (si percentage, 1-100)
+  status: CouponStatus;      // 'active' | 'inactive'
+  current_uses: number;      // contador de usos actuales
+  max_uses: number;          // límite máximo de usos (>0)
+  expires_at: string;        // ISO date — fecha de expiración
+  created_by: string;        // ID del admin que lo creó
+  created_at: string;        // ISO date
+  updated_at: string;        // ISO date
+}
+
+
 // Subscription Types for PayPal Integration
 
 export type SubscriptionStatus = 'active' | 'cancelled' | 'expired' | 'grace_period' | 'trial' | 'none';
@@ -263,9 +296,12 @@ export interface Subscription {
   trial_start_date?: string;          // ISO date
   trial_end_date?: string;            // ISO date
   trial_used: boolean;
+  trial_simulations_used?: number;   // number of simulations completed during trial (max 3)
   exam_change_used_this_period: boolean;
   cancelled_at?: string;             // ISO date
   admin_free_access?: boolean;       // true if Super Admin granted free access, default false
+  applied_coupon_code?: string;      // código del cupón de porcentaje aplicado
+  applied_coupon_discount?: number;  // porcentaje de descuento (1-100)
   created_at: string;                // ISO date
   updated_at: string;                // ISO date
 }

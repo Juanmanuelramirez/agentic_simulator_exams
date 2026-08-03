@@ -58,7 +58,38 @@ const QuestionCard: React.FC<QuestionCardProps> = ({
       )}
 
       <div className="question-header flex-between mb-2">
-        <h2 className="question-text">{question.question_text}</h2>
+        <div className="question-text">
+          {question.question_text.split(/(?=The solution must:|La solución debe:|A solução deve:|La solution doit :)/i).map((part, i) => {
+            if (i === 0) {
+              // Scenario paragraph
+              return <p key={i} className="question-scenario">{part.trim()}</p>;
+            }
+            // Requirements section - split by bullet points
+            const lines = part.split(/[•·]/).filter(l => l.trim());
+            const headerMatch = part.match(/^(.*?:)/);
+            return (
+              <div key={i} className="question-requirements">
+                {headerMatch && <p className="requirements-header">{headerMatch[1]}</p>}
+                <ul className="requirements-list">
+                  {lines.slice(headerMatch ? 1 : 0).map((line, j) => (
+                    <li key={j}>{line.trim()}</li>
+                  ))}
+                </ul>
+              </div>
+            );
+          })}
+          {/* Final question if it's after the last bullet */}
+          {(() => {
+            const text = question.question_text;
+            const lastBulletEnd = Math.max(text.lastIndexOf('•'), text.lastIndexOf('·'));
+            if (lastBulletEnd === -1) return null;
+            const afterLastBullet = text.substring(lastBulletEnd);
+            const questionMatch = afterLastBullet.match(/[.?!]\s*(Which|What|How|Where|When|Cuál|Qué|Cómo|Quel|Que)\s/i);
+            if (!questionMatch) return null;
+            const finalQuestion = afterLastBullet.substring(afterLastBullet.indexOf(questionMatch[0]) + 1).trim();
+            return finalQuestion ? <p className="question-final">{finalQuestion}</p> : null;
+          })()}
+        </div>
         {onToggleReview && (
           <button
             onClick={onToggleReview}
@@ -141,25 +172,31 @@ const QuestionCard: React.FC<QuestionCardProps> = ({
       )}
 
       <style>{`
-                .question-card { width: 100%; max-width: 900px; margin: 0 auto; padding: 2rem 0; }
-                .question-text { font-size: 1.5rem; font-weight: 700; line-height: 1.4; color: #1e293b; margin: 0; flex: 1; }
-                .question-instruction { font-size: 0.8125rem; font-weight: 700; letter-spacing: 0.03em; margin-top: 2rem; padding: 0.5rem 1rem; border-radius: 8px; display: inline-block; }
+                .question-card { width: 100%; max-width: 900px; margin: 0 auto; padding: 1rem 0; }
+                .question-text { font-size: 0.9375rem; font-weight: 400; line-height: 1.6; color: #1e293b; margin: 0; flex: 1; }
+                .question-scenario { margin: 0 0 0.5rem 0; color: #334155; }
+                .question-requirements { margin: 0.5rem 0; }
+                .requirements-header { margin: 0 0 0.35rem 0; font-weight: 600; color: #1e293b; }
+                .requirements-list { margin: 0; padding-left: 1.25rem; list-style: disc; }
+                .requirements-list li { margin-bottom: 0.25rem; color: #334155; line-height: 1.5; }
+                .question-final { margin: 0.5rem 0 0 0; font-weight: 600; color: #1e293b; font-style: italic; }
+                .question-instruction { font-size: 0.8125rem; font-weight: 700; letter-spacing: 0.03em; margin-top: 1rem; padding: 0.4rem 0.85rem; border-radius: 8px; display: inline-block; }
                 .question-card:has(.question-instruction) .question-instruction { background: #eff6ff; color: #4f46e5; border: 1px solid rgba(79, 70, 229, 0.15); }
                 
-                .options-container.v-stack { display: flex; flex-direction: column; gap: 0.75rem; margin-top: 1rem; }
+                .options-container.v-stack { display: flex; flex-direction: column; gap: 0.5rem; margin-top: 0.75rem; }
                 
                 .option-row {
-                    width: 100%; display: flex; align-items: center; gap: 1.25rem;
-                    padding: 1rem 1.5rem; border-radius: 12px;
+                    width: 100%; display: flex; align-items: center; gap: 1rem;
+                    padding: 0.75rem 1.25rem; border-radius: 12px;
                     border: 1px solid #e2e8f0; background: white;
                     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); text-align: left;
-                    min-height: 64px; cursor: pointer;
+                    min-height: 52px; cursor: pointer;
                     color: inherit;
                 }
                 
                 .option-row:hover:not(:disabled) { border-color: var(--primary); background: #f8fafc; }
                 .option-row:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
-                .option-row.selected { border-color: var(--primary); border-width: 2px; padding: calc(1rem - 1px) calc(1.5rem - 1px); }
+                .option-row.selected { border-color: var(--primary); border-width: 2px; padding: calc(0.75rem - 1px) calc(1.25rem - 1px); }
                 
                 .option-letter {
                     width: 32px; height: 32px; border-radius: 50%;
@@ -170,7 +207,7 @@ const QuestionCard: React.FC<QuestionCardProps> = ({
                 }
                 
                 .option-row.selected .option-letter { border-color: var(--primary); color: var(--primary); background: #eff6ff; }
-                .option-label { flex: 1; font-size: 1rem; color: #334155; font-weight: 500; }
+                .option-label { flex: 1; font-size: 0.9rem; color: #334155; font-weight: 500; }
                 
                 /* Verification */
                 .option-row.verified-correct { border-color: var(--success); background: #f0fdf4; border-width: 2px; }
@@ -201,6 +238,31 @@ const QuestionCard: React.FC<QuestionCardProps> = ({
                 .items-center { align-items: center; }
                 .gap-2 { gap: 0.5rem; }
                 .m-0 { margin: 0; }
+
+                /* Mobile optimizations */
+                @media (max-width: 768px) {
+                    .question-card { padding: 0.25rem 0; }
+                    .question-text { font-size: 0.8rem; line-height: 1.45; }
+                    .question-scenario { margin: 0 0 0.35rem 0; }
+                    .question-requirements { margin: 0.35rem 0; }
+                    .requirements-header { margin: 0 0 0.25rem 0; font-size: 0.8rem; }
+                    .requirements-list { padding-left: 1rem; }
+                    .requirements-list li { margin-bottom: 0.15rem; font-size: 0.8rem; line-height: 1.4; }
+                    .question-final { margin: 0.35rem 0 0 0; font-size: 0.8rem; }
+                    .question-instruction { font-size: 0.7rem; margin-top: 0.5rem; padding: 0.25rem 0.6rem; }
+                    .options-container.v-stack { gap: 0.35rem; margin-top: 0.5rem; }
+                    .option-row { padding: 0.5rem 0.75rem; gap: 0.6rem; min-height: 40px; border-radius: 10px; }
+                    .option-row.selected { padding: calc(0.5rem - 1px) calc(0.75rem - 1px); }
+                    .option-letter { width: 24px; height: 24px; font-size: 0.7rem; }
+                    .option-label { font-size: 0.8rem; line-height: 1.35; }
+                    .official-explanation { padding: 0.75rem; border-radius: 12px; }
+                    .official-explanation h3 { font-size: 0.9rem; }
+                    .explanation-summary { font-size: 0.8rem; }
+                    .why-correct-box, .why-incorrect-box { font-size: 0.8rem; }
+                    .mb-2 { margin-bottom: 0.5rem; }
+                    .flex-between { gap: 0.5rem; }
+                    .badge-indigo { font-size: 0.65rem; padding: 0.2rem 0.5rem; }
+                }
             `}</style>
     </div>
   );
